@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:medapp/screens/dashboard_screen.dart';
+import 'package:medapp/screens/family_manager_screen.dart';
 import 'package:medapp/screens/reminder_screen.dart';
 import 'package:medapp/screens/scanner_screen.dart';
 
@@ -12,33 +14,44 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = const [
+  late final List<Widget> _screens = const [
     ReminderScreen(),
     ScannerScreen(),
+    FamilyManagerScreen(),
+    DashboardScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
+      body: SafeArea(child: _screens[_currentIndex]),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (index) {
           setState(() {
             _currentIndex = index;
           });
         },
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.alarm),
-            label: "Reminders",
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.alarm_outlined),
+            selectedIcon: Icon(Icons.alarm),
+            label: 'Reminders',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.document_scanner),
-            label: "Scan",
+          NavigationDestination(
+            icon: Icon(Icons.document_scanner_outlined),
+            selectedIcon: Icon(Icons.document_scanner),
+            label: 'Scan',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.family_restroom_outlined),
+            selectedIcon: Icon(Icons.family_restroom),
+            label: 'Family',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.monitor_heart_outlined),
+            selectedIcon: Icon(Icons.monitor_heart),
+            label: 'Dashboard',
           ),
         ],
       ),
