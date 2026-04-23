@@ -73,6 +73,14 @@ class _FamilyManagerScreenState extends State<FamilyManagerScreen> {
                         );
                         _nameController.clear();
                         _relationshipController.clear();
+
+                        if (!mounted) {
+                          return;
+                        }
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Profile added')),
+                        );
                       },
                       child: const Text('Add Profile'),
                     ),
@@ -96,7 +104,7 @@ class _FamilyManagerScreenState extends State<FamilyManagerScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
-                        onPressed: () => _showEditDialog(profile),
+                        onPressed: () => _openEditScreen(profile),
                         icon: const Icon(Icons.edit_outlined),
                       ),
                       IconButton(
@@ -114,69 +122,44 @@ class _FamilyManagerScreenState extends State<FamilyManagerScreen> {
     );
   }
 
-  Future<void> _showEditDialog(FamilyMember profile) async {
-    final controller = AppScope.of(context);
-    final nameController = TextEditingController(text: profile.name);
-    final relationshipController =
-        TextEditingController(text: profile.relationship);
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Edit profile'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: relationshipController,
-                decoration: const InputDecoration(
-                  labelText: 'Relationship',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                if (nameController.text.trim().isEmpty) {
-                  return;
-                }
-
-                await controller.updateProfile(
-                  profileId: profile.id,
-                  name: nameController.text.trim(),
-                  relationship: relationshipController.text.trim(),
-                );
-
-                if (!mounted) {
-                  return;
-                }
-
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
+  Future<void> _openEditScreen(FamilyMember profile) async {
+    final updated = await Navigator.of(context).push<FamilyMember>(
+      MaterialPageRoute(
+        builder: (_) => _EditFamilyProfileScreen(profile: profile),
+      ),
     );
 
-    nameController.dispose();
-    relationshipController.dispose();
+    if (updated == null || !mounted) {
+      return;
+    }
+
+    final controller = AppScope.of(context);
+
+    try {
+      await controller.updateProfile(
+        profileId: updated.id,
+        name: updated.name,
+        relationship: updated.relationship,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile updated')),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not update profile. Please try again.'),
+        ),
+      );
+    }
   }
 
   Future<void> _confirmDelete(FamilyMember profile) async {
@@ -206,5 +189,78 @@ class _FamilyManagerScreenState extends State<FamilyManagerScreen> {
     if (shouldDelete == true) {
       await controller.deleteProfile(profile.id);
     }
+  }
+}
+
+class _EditFamilyProfileScreen extends StatefulWidget {
+  const _EditFamilyProfileScreen({required this.profile});
+
+  final FamilyMember profile;
+
+  @override
+  State<_EditFamilyProfileScreen> createState() =>
+      _EditFamilyProfileScreenState();
+}
+
+class _EditFamilyProfileScreenState extends State<_EditFamilyProfileScreen> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _relationshipController;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.profile.name);
+    _relationshipController =
+        TextEditingController(text: widget.profile.relationship);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _relationshipController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Edit Profile')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          TextField(
+            controller: _nameController,
+            decoration: const InputDecoration(
+              labelText: 'Name',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _relationshipController,
+            decoration: const InputDecoration(
+              labelText: 'Relationship',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: () {
+              if (_nameController.text.trim().isEmpty) {
+                return;
+              }
+
+              Navigator.of(context).pop(
+                widget.profile.copyWith(
+                  name: _nameController.text.trim(),
+                  relationship: _relationshipController.text.trim(),
+                ),
+              );
+            },
+            child: const Text('Save Changes'),
+          ),
+        ],
+      ),
+    );
   }
 }

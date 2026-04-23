@@ -9,16 +9,26 @@ class MedicineTile extends StatelessWidget {
     required this.profile,
     required this.onDelete,
     required this.onTaken,
+    required this.onAddTablets,
   });
 
   final Medicine medicine;
   final FamilyMember? profile;
   final VoidCallback onDelete;
   final VoidCallback onTaken;
+  final VoidCallback onAddTablets;
+
+  int _daysRemaining() {
+    if (medicine.tabletsPerDose <= 0) {
+      return 0;
+    }
+    return (medicine.remainingTablets / medicine.tabletsPerDose).floor();
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final daysRemaining = _daysRemaining();
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -69,8 +79,10 @@ class MedicineTile extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _InfoChip(label: profile == null ? 'No profile' : profile!.name),
+                _InfoChip(
+                    label: profile == null ? 'No profile' : profile!.name),
                 _InfoChip(label: '${medicine.remainingTablets} tablets left'),
+                _InfoChip(label: '$daysRemaining day supply'),
                 if (medicine.isLowStock)
                   const _InfoChip(
                     label: 'Refill soon',
@@ -82,10 +94,21 @@ class MedicineTile extends StatelessWidget {
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: onTaken,
-                icon: const Icon(Icons.check_circle_outline),
-                label: const Text('Mark as taken'),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: onTaken,
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('Mark as taken'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onAddTablets,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add tablets'),
+                  ),
+                ],
               ),
             ),
           ],

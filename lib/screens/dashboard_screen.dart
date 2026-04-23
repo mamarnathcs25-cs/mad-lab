@@ -29,12 +29,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final metrics = profileId == null
         ? <HealthMetric>[]
         : controller.metricsForProfile(profileId, _selectedType);
+    final trend = _trendLabel(metrics);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Health Tracking Dashboard')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1D4ED8), Color(0xFF06B6D4)],
+              ),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Health Snapshot',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  trend,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -49,7 +81,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: _selectedProfileId,
+                    initialValue: _selectedProfileId,
                     items: profiles
                         .map(
                           (profile) => DropdownMenuItem<String>(
@@ -67,7 +99,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<MetricType>(
-                    value: _selectedType,
+                    initialValue: _selectedType,
                     items: MetricType.values
                         .map(
                           (type) => DropdownMenuItem(
@@ -139,7 +171,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             (metric) => Card(
               child: ListTile(
                 leading: const Icon(Icons.monitor_heart_outlined),
-                title: Text('${metric.value.toStringAsFixed(1)} ${metric.unit}'),
+                title:
+                    Text('${metric.value.toStringAsFixed(1)} ${metric.unit}'),
                 subtitle: Text(_formatDateTime(metric.recordedAt)),
               ),
             ),
@@ -169,6 +202,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final minute = dateTime.minute.toString().padLeft(2, '0');
     return '$day/$month/$year $hour:$minute';
   }
+
+  String _trendLabel(List<HealthMetric> metrics) {
+    if (metrics.length < 2) {
+      return 'Add more readings to unlock trend insights.';
+    }
+
+    final latest = metrics.last.value;
+    final previous = metrics[metrics.length - 2].value;
+    if (latest > previous) {
+      return '${_metricTitle(_selectedType)} is trending upward.';
+    }
+    if (latest < previous) {
+      return '${_metricTitle(_selectedType)} is improving from the last reading.';
+    }
+    return '${_metricTitle(_selectedType)} is stable right now.';
+  }
 }
 
 class _SimpleMetricChart extends StatelessWidget {
@@ -178,9 +227,8 @@ class _SimpleMetricChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxValue = metrics
-        .map((metric) => metric.value)
-        .fold<double>(0, (previous, current) => current > previous ? current : previous);
+    final maxValue = metrics.map((metric) => metric.value).fold<double>(
+        0, (previous, current) => current > previous ? current : previous);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -202,7 +250,8 @@ class _SimpleMetricChart extends StatelessWidget {
                       alignment: Alignment.bottomCenter,
                       child: Container(
                         width: 22,
-                        height: maxValue == 0 ? 0 : (metric.value / maxValue) * 160,
+                        height:
+                            maxValue == 0 ? 0 : (metric.value / maxValue) * 160,
                         decoration: BoxDecoration(
                           color: const Color(0xFF0F766E),
                           borderRadius: BorderRadius.circular(12),

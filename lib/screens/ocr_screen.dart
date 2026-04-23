@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:medapp/models/prescription_result.dart';
+import 'package:medapp/screens/add_medicine_screen.dart';
 import 'package:medapp/services/prescription_parser.dart';
 
 class OCRScreen extends StatefulWidget {
@@ -71,16 +72,43 @@ class _OCRScreenState extends State<OCRScreen> {
                               : Wrap(
                                   spacing: 8,
                                   runSpacing: 8,
-                                  children: result.medicineNames
-                                      .map(
-                                        (name) => Chip(
-                                          label: Text(name),
-                                          avatar: const Icon(
-                                              Icons.local_hospital_outlined,
-                                              size: 18),
-                                        ),
-                                      )
-                                      .toList(),
+                                  children: result.medicineNames.map((name) {
+                                    final matchedDosage =
+                                        result.dosageLines.isEmpty
+                                            ? ''
+                                            : result.dosageLines.first;
+                                    return ActionChip(
+                                      label: Text(name),
+                                      avatar: const Icon(
+                                        Icons.local_hospital_outlined,
+                                        size: 18,
+                                      ),
+                                      onPressed: () async {
+                                        final saved =
+                                            await Navigator.of(context)
+                                                .push<bool>(
+                                          MaterialPageRoute(
+                                            builder: (_) => AddMedicineScreen(
+                                              initialMedicineName: name,
+                                              initialDosage: matchedDosage,
+                                            ),
+                                          ),
+                                        );
+
+                                        if (!context.mounted || saved != true) {
+                                          return;
+                                        }
+
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                                '$name added to reminders'),
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  }).toList(),
                                 ),
                         ),
                         const SizedBox(height: 12),
@@ -102,6 +130,37 @@ class _OCRScreenState extends State<OCRScreen> {
                                       .toList(),
                                 ),
                         ),
+                        const SizedBox(height: 12),
+                        if (result.medicineNames.isNotEmpty)
+                          FilledButton.icon(
+                            onPressed: () async {
+                              final saved =
+                                  await Navigator.of(context).push<bool>(
+                                MaterialPageRoute(
+                                  builder: (_) => AddMedicineScreen(
+                                    initialMedicineName:
+                                        result.medicineNames.first,
+                                    initialDosage: result.dosageLines.isEmpty
+                                        ? ''
+                                        : result.dosageLines.first,
+                                  ),
+                                ),
+                              );
+
+                              if (!context.mounted || saved != true) {
+                                return;
+                              }
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content:
+                                      Text('Medicine added from prescription'),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.auto_fix_high_outlined),
+                            label: const Text('Auto-fill into Reminder'),
+                          ),
                         const SizedBox(height: 12),
                         _SectionCard(
                           title: 'Raw Extracted Text',

@@ -24,9 +24,19 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(child: _screens[_currentIndex]),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFFF8FAFC), Color(0xFFECFEFF)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: SafeArea(child: _screens[_currentIndex]),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
+        height: 72,
         onDestinationSelected: (index) {
           setState(() {
             _currentIndex = index;
