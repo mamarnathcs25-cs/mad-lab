@@ -4,6 +4,7 @@ import 'package:medapp/models/health_metric.dart';
 import 'package:medapp/models/medicine_log.dart';
 import 'package:medapp/models/medicine_model.dart';
 import 'package:medapp/services/database_service.dart';
+import 'package:medapp/services/notification_service.dart';
 
 class AppController extends ChangeNotifier {
   AppController();
@@ -18,13 +19,15 @@ class AppController extends ChangeNotifier {
 
   List<FamilyMember> get profiles => List.unmodifiable(_profiles);
   List<Medicine> get medicines => List.unmodifiable(_medicines);
+  List<Medicine> get pendingMedicines => List.unmodifiable(
+        _medicines.where((medicine) => !isMedicineHandledToday(medicine)),
+      );
   List<HealthMetric> get metrics => List.unmodifiable(_metrics);
   List<MedicineLog> get medicineLogs => List.unmodifiable(_medicineLogs);
   bool get isLoaded => _isLoaded;
 
   Future<void> load() async {
     if (kIsWeb) {
-      _seedDefaultsInMemory();
       _sortAll();
       _isLoaded = true;
       notifyListeners();
@@ -32,19 +35,25 @@ class AppController extends ChangeNotifier {
     }
 
     await _loadFromDatabase();
-    if (_profiles.isEmpty) {
-      _seedDefaultsInMemory();
-      await _database.seedDefaults(
-        profiles: _profiles,
-        medicines: _medicines,
-        metrics: _metrics,
-      );
-      await _loadFromDatabase();
+    await _removeLegacySeedData();
+    await _loadFromDatabase();
+    await refreshMedicineStatuses();
+    await _refreshMedicineSchedules();
+    _sortAll();
+    _isLoaded = true;
+    notifyListeners();
+  }
+
+  Future<void> refreshMedicineStatuses() async {
+    if (kIsWeb) {
+      notifyListeners();
+      return;
     }
 
     await _syncRefillCounts();
+    await _autoMarkNightMisses();
+    await _loadFromDatabase();
     _sortAll();
-    _isLoaded = true;
     notifyListeners();
   }
 
@@ -66,11 +75,15 @@ class AppController extends ChangeNotifier {
   Future<void> addProfile({
     required String name,
     required String relationship,
+    required int age,
+    required double weightKg,
   }) async {
     final profile = FamilyMember(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       name: name,
       relationship: relationship,
+      age: age,
+      weightKg: weightKg,
     );
     _profiles.add(profile);
     if (!kIsWeb) {
@@ -85,6 +98,8 @@ class AppController extends ChangeNotifier {
     required String profileId,
     required String name,
     required String relationship,
+    required int age,
+    required double weightKg,
   }) async {
     final index = _profiles.indexWhere((profile) => profile.id == profileId);
     if (index == -1) {
@@ -94,6 +109,8 @@ class AppController extends ChangeNotifier {
     final updated = _profiles[index].copyWith(
       name: name,
       relationship: relationship,
+      age: age,
+      weightKg: weightKg,
     );
 
     try {
@@ -128,10 +145,13 @@ class AppController extends ChangeNotifier {
     required String profileId,
     required String name,
     required String dosage,
-    required MedicineTimeSlot period,
+    required MealTiming mealTiming,
+    required int reminderHour,
+    required int reminderMinute,
     required int totalTablets,
     required int tabletsPerDose,
   }) async {
+    final period = medicineTimeSlotForHour(reminderHour);
     final medicine = Medicine(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       profileId: profileId,
@@ -142,10 +162,14 @@ class AppController extends ChangeNotifier {
       remainingTablets: totalTablets,
       tabletsPerDose: tabletsPerDose,
       lastRefillSync: DateTime.now(),
+      mealTiming: mealTiming,
+      reminderHour: reminderHour,
+      reminderMinute: reminderMinute,
     );
     _medicines.add(medicine);
     if (!kIsWeb) {
       await _database.insertMedicine(medicine);
+      await NotificationService.instance.scheduleMedicineReminder(medicine);
       await _database.insertMedicineLog(
         MedicineLog(
           id: '${medicine.id}-created',
@@ -166,6 +190,7 @@ class AppController extends ChangeNotifier {
     _medicines.removeWhere((medicine) => medicine.id == medicineId);
     if (!kIsWeb) {
       await _database.deleteMedicine(medicineId);
+      await NotificationService.instance.cancelMedicineReminder(medicineId);
       await _loadFromDatabase();
     }
     notifyListeners();
@@ -175,13 +200,15 @@ class AppController extends ChangeNotifier {
     required String profileId,
     required MetricType type,
     required double value,
+    DateTime? recordedAt,
   }) async {
+    final entryDate = recordedAt ?? DateTime.now();
     final metric = HealthMetric(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       profileId: profileId,
       type: type,
       value: value,
-      recordedAt: DateTime.now(),
+      recordedAt: entryDate,
     );
     _metrics.add(metric);
     if (!kIsWeb) {
@@ -199,14 +226,23 @@ class AppController extends ChangeNotifier {
     }
 
     final current = _medicines[index];
+    if (isMedicineHandledToday(current)) {
+      return;
+    }
     final updated = current.copyWith(
       remainingTablets: (current.remainingTablets - current.tabletsPerDose)
           .clamp(0, current.totalTablets),
       lastRefillSync: DateTime.now(),
+      lastTakenOn: DateTime.now(),
+      lastMissedOn: null,
     );
     _medicines[index] = updated;
     if (!kIsWeb) {
       await _database.updateMedicine(updated);
+      await NotificationService.instance.dismissActiveMedicineNotification(
+        updated.id,
+      );
+      await NotificationService.instance.scheduleMedicineReminder(updated);
       await _database.insertMedicineLog(
         MedicineLog(
           id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -219,6 +255,44 @@ class AppController extends ChangeNotifier {
       );
       await _loadFromDatabase();
     }
+    _sortAll();
+    notifyListeners();
+  }
+
+  Future<void> markMedicineMissed(String medicineId) async {
+    final index =
+        _medicines.indexWhere((medicine) => medicine.id == medicineId);
+    if (index == -1) {
+      return;
+    }
+
+    final current = _medicines[index];
+    if (isMedicineHandledToday(current)) {
+      return;
+    }
+
+    final updated = current.copyWith(lastMissedOn: DateTime.now());
+    _medicines[index] = updated;
+
+    if (!kIsWeb) {
+      await _database.updateMedicine(updated);
+      await NotificationService.instance.dismissActiveMedicineNotification(
+        updated.id,
+      );
+      await NotificationService.instance.scheduleMedicineReminder(updated);
+      await _database.insertMedicineLog(
+        MedicineLog(
+          id: DateTime.now().microsecondsSinceEpoch.toString(),
+          medicineId: updated.id,
+          profileId: updated.profileId,
+          medicineName: updated.name,
+          action: 'missed',
+          loggedAt: DateTime.now(),
+        ),
+      );
+      await _loadFromDatabase();
+    }
+
     _sortAll();
     notifyListeners();
   }
@@ -272,7 +346,11 @@ class AppController extends ChangeNotifier {
 
   List<Medicine> medicinesForProfile(String profileId) {
     final filtered = _medicines
-        .where((medicine) => medicine.profileId == profileId)
+        .where(
+          (medicine) =>
+              medicine.profileId == profileId &&
+              !isMedicineHandledToday(medicine),
+        )
         .toList();
     filtered.sort(_compareMedicines);
     return filtered;
@@ -293,8 +371,33 @@ class AppController extends ChangeNotifier {
         .toList();
   }
 
+  List<MedicineLog> logsForToday() {
+    final now = DateTime.now();
+    return _medicineLogs.where((log) {
+      return log.loggedAt.year == now.year &&
+          log.loggedAt.month == now.month &&
+          log.loggedAt.day == now.day;
+    }).toList();
+  }
+
+  List<MedicineLog> logsForThisWeek() {
+    final now = DateTime.now();
+    final startOfWeek = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: now.weekday - 1));
+    final endOfWeek = startOfWeek.add(const Duration(days: 7));
+    return _medicineLogs.where((log) {
+      return !log.loggedAt.isBefore(startOfWeek) &&
+          log.loggedAt.isBefore(endOfWeek);
+    }).toList();
+  }
+
   int medicinesForPeriod(MedicineTimeSlot period) {
-    return _medicines.where((medicine) => medicine.period == period).length;
+    return _medicines
+        .where(
+          (medicine) =>
+              medicine.period == period && !isMedicineHandledToday(medicine),
+        )
+        .length;
   }
 
   int lowStockSoonCount() {
@@ -314,69 +417,6 @@ class AppController extends ChangeNotifier {
     } catch (_) {
       return null;
     }
-  }
-
-  void _seedDefaultsInMemory() {
-    if (_profiles.isNotEmpty || _metrics.isNotEmpty || _medicines.isNotEmpty) {
-      return;
-    }
-
-    final primaryProfile = FamilyMember(
-      id: 'self',
-      name: 'You',
-      relationship: 'Self',
-    );
-    final mother = FamilyMember(
-      id: 'mother',
-      name: 'Anita',
-      relationship: 'Mother',
-    );
-
-    _profiles
-      ..clear()
-      ..addAll([primaryProfile, mother]);
-
-    _medicines
-      ..clear()
-      ..add(
-        Medicine(
-          id: 'starter-med-1',
-          profileId: primaryProfile.id,
-          name: 'Metformin',
-          dosage: '500 mg',
-          period: MedicineTimeSlot.morning,
-          totalTablets: 15,
-          remainingTablets: 9,
-          tabletsPerDose: 1,
-          lastRefillSync: DateTime.now(),
-        ),
-      );
-
-    _metrics
-      ..clear()
-      ..addAll([
-        HealthMetric(
-          id: 'bp-1',
-          profileId: primaryProfile.id,
-          type: MetricType.bloodPressure,
-          value: 124,
-          recordedAt: DateTime.now().subtract(const Duration(days: 4)),
-        ),
-        HealthMetric(
-          id: 'bp-2',
-          profileId: primaryProfile.id,
-          type: MetricType.bloodPressure,
-          value: 122,
-          recordedAt: DateTime.now().subtract(const Duration(days: 2)),
-        ),
-        HealthMetric(
-          id: 'bp-3',
-          profileId: primaryProfile.id,
-          type: MetricType.bloodPressure,
-          value: 118,
-          recordedAt: DateTime.now(),
-        ),
-      ]);
   }
 
   Future<void> _syncRefillCounts() async {
@@ -408,6 +448,15 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  Future<void> _refreshMedicineSchedules() async {
+    if (kIsWeb) {
+      return;
+    }
+    for (final medicine in _medicines) {
+      await NotificationService.instance.scheduleMedicineReminder(medicine);
+    }
+  }
+
   void _sortAll() {
     _profiles
         .sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
@@ -421,6 +470,97 @@ class AppController extends ChangeNotifier {
     if (periodCompare != 0) {
       return periodCompare;
     }
+    final hourCompare = a.reminderHour.compareTo(b.reminderHour);
+    if (hourCompare != 0) {
+      return hourCompare;
+    }
+    final minuteCompare = a.reminderMinute.compareTo(b.reminderMinute);
+    if (minuteCompare != 0) {
+      return minuteCompare;
+    }
     return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  }
+
+  bool isMedicineTakenToday(Medicine medicine) {
+    return _isSameDay(medicine.lastTakenOn, DateTime.now());
+  }
+
+  bool isMedicineMissedToday(Medicine medicine) {
+    return _isSameDay(medicine.lastMissedOn, DateTime.now());
+  }
+
+  bool isMedicineHandledToday(Medicine medicine) {
+    return isMedicineTakenToday(medicine) || isMedicineMissedToday(medicine);
+  }
+
+  Future<void> markMedicineTakenFromNotification(String medicineId) async {
+    await decrementMedicine(medicineId);
+  }
+
+  Future<void> _removeLegacySeedData() async {
+    final demoProfileIds = {'self', 'mother'};
+    final hasLegacyProfiles = _profiles.any(
+      (profile) => demoProfileIds.contains(profile.id),
+    );
+    final hasLegacyMedicine = _medicines.any(
+      (medicine) => medicine.id == 'starter-med-1',
+    );
+    if (!hasLegacyProfiles && !hasLegacyMedicine) {
+      return;
+    }
+
+    for (final profileId in demoProfileIds) {
+      if (_profiles.any((profile) => profile.id == profileId)) {
+        await _database.deleteProfileRelatedData(profileId);
+      }
+    }
+  }
+
+  Future<void> _autoMarkNightMisses() async {
+    final now = DateTime.now();
+    final cutoff = DateTime(now.year, now.month, now.day, 22);
+    if (now.isBefore(cutoff)) {
+      return;
+    }
+
+    for (var i = 0; i < _medicines.length; i++) {
+      final medicine = _medicines[i];
+      if (isMedicineHandledToday(medicine)) {
+        continue;
+      }
+
+      final reminderTime = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        medicine.reminderHour,
+        medicine.reminderMinute,
+      );
+      if (now.isBefore(reminderTime)) {
+        continue;
+      }
+
+      final updated = medicine.copyWith(lastMissedOn: now);
+      _medicines[i] = updated;
+      await _database.updateMedicine(updated);
+      await NotificationService.instance.cancelMedicineReminder(updated.id);
+      await _database.insertMedicineLog(
+        MedicineLog(
+          id: 'missed-${updated.id}-${now.millisecondsSinceEpoch}',
+          medicineId: updated.id,
+          profileId: updated.profileId,
+          medicineName: updated.name,
+          action: 'missed',
+          loggedAt: now,
+        ),
+      );
+    }
+  }
+
+  bool _isSameDay(DateTime? a, DateTime b) {
+    if (a == null) {
+      return false;
+    }
+    return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 }

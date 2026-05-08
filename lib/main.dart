@@ -2,25 +2,55 @@ import 'package:flutter/material.dart';
 import 'package:medapp/app_scope.dart';
 import 'package:medapp/screens/home_screen.dart';
 import 'package:medapp/services/app_controller.dart';
+import 'package:medapp/services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final controller = AppController();
+  await NotificationService.instance.init();
+  await NotificationService.instance.requestPermissions();
   await controller.load();
+  await NotificationService.instance.attachMarkTakenHandler(
+    controller.markMedicineTakenFromNotification,
+  );
 
   runApp(MyApp(controller: controller));
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key, required this.controller});
 
   final AppController controller;
 
   @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      widget.controller.refreshMedicineStatuses();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AppScope(
-      controller: controller,
+      controller: widget.controller,
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'MedApp',

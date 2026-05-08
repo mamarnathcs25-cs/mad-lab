@@ -3,6 +3,7 @@ import 'package:medapp/app_scope.dart';
 import 'package:medapp/models/medicine_log.dart';
 import 'package:medapp/models/medicine_model.dart';
 import 'package:medapp/screens/add_medicine_screen.dart';
+import 'package:medapp/screens/medicine_history_screen.dart';
 import 'package:medapp/services/app_controller.dart';
 import 'package:medapp/widgets/medicine_tile.dart';
 
@@ -12,6 +13,7 @@ class ReminderScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = AppScope.of(context);
+    final pendingMedicines = controller.pendingMedicines;
     final primaryProfile =
         controller.profiles.isEmpty ? null : controller.profiles.first;
     final recentLogs = primaryProfile == null
@@ -47,20 +49,21 @@ class ReminderScreen extends StatelessWidget {
             subtitle: 'Track reminders, refill counts, and medicine actions.',
           ),
           const SizedBox(height: 12),
-          if (controller.medicines.isEmpty)
+          if (pendingMedicines.isEmpty)
             const _EmptyPanel(
-              title: 'No medicines yet',
+              title: 'No pending medicines',
               subtitle:
-                  'Add your first reminder to start tracking doses, refills, and history.',
+                  'Add a reminder or mark medicines tomorrow when the next day starts.',
               icon: Icons.medication_liquid_outlined,
             )
           else
-            ...controller.medicines.map(
+            ...pendingMedicines.map(
               (medicine) => MedicineTile(
                 medicine: medicine,
                 profile: controller.profileById(medicine.profileId),
                 onDelete: () => controller.deleteMedicine(medicine.id),
                 onTaken: () => controller.decrementMedicine(medicine.id),
+                onMissed: () => controller.markMedicineMissed(medicine.id),
                 onAddTablets: () => _openAddTabletsScreen(
                   context: context,
                   medicineId: medicine.id,
@@ -72,6 +75,14 @@ class ReminderScreen extends StatelessWidget {
           _SectionHeader(
             title: 'Recent Activity',
             subtitle: 'Taken doses and refill actions appear here.',
+            actionLabel: 'View History',
+            onAction: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const MedicineHistoryScreen(),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 12),
           if (recentLogs.isEmpty)
@@ -90,8 +101,12 @@ class ReminderScreen extends StatelessWidget {
                     child: Icon(
                       log.action.startsWith('taken')
                           ? Icons.check_circle_outline
-                          : Icons.inventory_2_outlined,
-                      color: const Color(0xFF0F766E),
+                          : log.action == 'missed'
+                              ? Icons.cancel_outlined
+                              : Icons.inventory_2_outlined,
+                      color: log.action == 'missed'
+                          ? const Color(0xFFDC2626)
+                          : const Color(0xFF0F766E),
                     ),
                   ),
                   title: Text(log.medicineName),
@@ -293,27 +308,40 @@ class _SectionHeader extends StatelessWidget {
   const _SectionHeader({
     required this.title,
     required this.subtitle,
+    this.actionLabel,
+    this.onAction,
   });
 
   final String title;
   final String subtitle;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
               ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: const TextStyle(color: Color(0xFF64748B)),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: const TextStyle(color: Color(0xFF64748B)),
-        ),
+        if (actionLabel != null && onAction != null)
+          TextButton(onPressed: onAction, child: Text(actionLabel!)),
       ],
     );
   }

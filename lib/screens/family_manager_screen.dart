@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:medapp/app_scope.dart';
 import 'package:medapp/models/family_member.dart';
+import 'package:medapp/screens/symptom_support_screen.dart';
 
 class FamilyManagerScreen extends StatefulWidget {
   const FamilyManagerScreen({super.key});
@@ -12,11 +13,15 @@ class FamilyManagerScreen extends StatefulWidget {
 class _FamilyManagerScreenState extends State<FamilyManagerScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _relationshipController = TextEditingController();
+  final TextEditingController _ageController = TextEditingController();
+  final TextEditingController _weightController = TextEditingController();
 
   @override
   void dispose() {
     _nameController.dispose();
     _relationshipController.dispose();
+    _ageController.dispose();
+    _weightController.dispose();
     super.dispose();
   }
 
@@ -58,6 +63,34 @@ class _FamilyManagerScreenState extends State<FamilyManagerScreen> {
                       border: OutlineInputBorder(),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _ageController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Age',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: _weightController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Weight (kg)',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 14),
                   SizedBox(
                     width: double.infinity,
@@ -70,9 +103,15 @@ class _FamilyManagerScreenState extends State<FamilyManagerScreen> {
                         await controller.addProfile(
                           name: _nameController.text.trim(),
                           relationship: _relationshipController.text.trim(),
+                          age: int.tryParse(_ageController.text.trim()) ?? 0,
+                          weightKg:
+                              double.tryParse(_weightController.text.trim()) ??
+                                  0,
                         );
                         _nameController.clear();
                         _relationshipController.clear();
+                        _ageController.clear();
+                        _weightController.clear();
 
                         if (!mounted) {
                           return;
@@ -98,11 +137,30 @@ class _FamilyManagerScreenState extends State<FamilyManagerScreen> {
                   leading: CircleAvatar(child: Text(profile.initials)),
                   title: Text(profile.name),
                   subtitle: Text(
-                    '${profile.relationship.isEmpty ? 'Family member' : profile.relationship} - ${medicines.length} medicines tracked',
+                    '${profile.relationship.isEmpty ? 'Family member' : profile.relationship} - Age ${profile.age} - ${profile.weightKg.toStringAsFixed(1)} kg - ${medicines.length} medicines tracked',
                   ),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => SymptomSupportScreen(profile: profile),
+                      ),
+                    );
+                  },
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      IconButton(
+                        tooltip: 'Symptom support',
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  SymptomSupportScreen(profile: profile),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.health_and_safety_outlined),
+                      ),
                       IconButton(
                         onPressed: () => _openEditScreen(profile),
                         icon: const Icon(Icons.edit_outlined),
@@ -140,6 +198,8 @@ class _FamilyManagerScreenState extends State<FamilyManagerScreen> {
         profileId: updated.id,
         name: updated.name,
         relationship: updated.relationship,
+        age: updated.age,
+        weightKg: updated.weightKg,
       );
 
       if (!mounted) {
@@ -205,6 +265,8 @@ class _EditFamilyProfileScreen extends StatefulWidget {
 class _EditFamilyProfileScreenState extends State<_EditFamilyProfileScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _relationshipController;
+  late final TextEditingController _ageController;
+  late final TextEditingController _weightController;
 
   @override
   void initState() {
@@ -212,12 +274,17 @@ class _EditFamilyProfileScreenState extends State<_EditFamilyProfileScreen> {
     _nameController = TextEditingController(text: widget.profile.name);
     _relationshipController =
         TextEditingController(text: widget.profile.relationship);
+    _ageController = TextEditingController(text: widget.profile.age.toString());
+    _weightController =
+        TextEditingController(text: widget.profile.weightKg.toStringAsFixed(1));
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _relationshipController.dispose();
+    _ageController.dispose();
+    _weightController.dispose();
     super.dispose();
   }
 
@@ -243,6 +310,33 @@ class _EditFamilyProfileScreenState extends State<_EditFamilyProfileScreen> {
               border: OutlineInputBorder(),
             ),
           ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _ageController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Age',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _weightController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Weight (kg)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           FilledButton(
             onPressed: () {
@@ -254,6 +348,8 @@ class _EditFamilyProfileScreenState extends State<_EditFamilyProfileScreen> {
                 widget.profile.copyWith(
                   name: _nameController.text.trim(),
                   relationship: _relationshipController.text.trim(),
+                  age: int.tryParse(_ageController.text.trim()) ?? 0,
+                  weightKg: double.tryParse(_weightController.text.trim()) ?? 0,
                 ),
               );
             },

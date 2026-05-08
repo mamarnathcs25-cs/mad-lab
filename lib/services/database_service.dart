@@ -11,7 +11,7 @@ class DatabaseService {
   static final DatabaseService instance = DatabaseService._();
 
   static const _databaseName = 'medapp.db';
-  static const _databaseVersion = 2;
+  static const _databaseVersion = 8;
 
   Database? _database;
 
@@ -41,7 +41,9 @@ class DatabaseService {
       CREATE TABLE family_members (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        relationship TEXT NOT NULL
+        relationship TEXT NOT NULL,
+        age INTEGER NOT NULL DEFAULT 0,
+        weight_kg REAL NOT NULL DEFAULT 0
       )
     ''');
 
@@ -56,6 +58,11 @@ class DatabaseService {
         remaining_tablets INTEGER NOT NULL,
         tablets_per_dose INTEGER NOT NULL,
         last_refill_sync TEXT NOT NULL,
+        meal_timing TEXT NOT NULL DEFAULT 'afterMeal',
+        reminder_hour INTEGER NOT NULL DEFAULT 8,
+        reminder_minute INTEGER NOT NULL DEFAULT 30,
+        last_taken_on TEXT,
+        last_missed_on TEXT,
         reminders_enabled INTEGER NOT NULL DEFAULT 1,
         FOREIGN KEY (profile_id) REFERENCES family_members (id) ON DELETE CASCADE
       )
@@ -100,6 +107,39 @@ class DatabaseService {
         )
       ''');
     }
+    if (oldVersion < 3) {
+      await db.execute(
+        'ALTER TABLE family_members ADD COLUMN age INTEGER NOT NULL DEFAULT 0',
+      );
+    }
+    if (oldVersion < 4) {
+      await db.execute(
+        'ALTER TABLE family_members ADD COLUMN weight_kg REAL NOT NULL DEFAULT 0',
+      );
+    }
+    if (oldVersion < 5) {
+      await db.execute(
+        "ALTER TABLE medicines ADD COLUMN meal_timing TEXT NOT NULL DEFAULT 'afterMeal'",
+      );
+    }
+    if (oldVersion < 6) {
+      await db.execute(
+        'ALTER TABLE medicines ADD COLUMN reminder_hour INTEGER NOT NULL DEFAULT 8',
+      );
+      await db.execute(
+        'ALTER TABLE medicines ADD COLUMN reminder_minute INTEGER NOT NULL DEFAULT 30',
+      );
+    }
+    if (oldVersion < 7) {
+      await db.execute(
+        'ALTER TABLE medicines ADD COLUMN last_taken_on TEXT',
+      );
+    }
+    if (oldVersion < 8) {
+      await db.execute(
+        'ALTER TABLE medicines ADD COLUMN last_missed_on TEXT',
+      );
+    }
   }
 
   Future<List<FamilyMember>> getFamilyMembers() async {
@@ -140,6 +180,8 @@ class DatabaseService {
           WHEN 'night' THEN 2
           ELSE 3
         END ASC,
+        reminder_hour ASC,
+        reminder_minute ASC,
         LOWER(name) ASC
       ''',
     );
@@ -271,6 +313,8 @@ class DatabaseService {
       'id': member.id,
       'name': member.name,
       'relationship': member.relationship,
+      'age': member.age,
+      'weight_kg': member.weightKg,
     };
   }
 
@@ -279,6 +323,8 @@ class DatabaseService {
       id: row['id'] as String,
       name: row['name'] as String,
       relationship: row['relationship'] as String,
+      age: (row['age'] as num?)?.toInt() ?? 0,
+      weightKg: (row['weight_kg'] as num?)?.toDouble() ?? 0,
     );
   }
 
@@ -293,6 +339,11 @@ class DatabaseService {
       'remaining_tablets': medicine.remainingTablets,
       'tablets_per_dose': medicine.tabletsPerDose,
       'last_refill_sync': medicine.lastRefillSync.toIso8601String(),
+      'meal_timing': medicine.mealTiming.name,
+      'reminder_hour': medicine.reminderHour,
+      'reminder_minute': medicine.reminderMinute,
+      'last_taken_on': medicine.lastTakenOn?.toIso8601String(),
+      'last_missed_on': medicine.lastMissedOn?.toIso8601String(),
       'reminders_enabled': medicine.remindersEnabled ? 1 : 0,
     };
   }
@@ -309,6 +360,13 @@ class DatabaseService {
       tabletsPerDose: row['tablets_per_dose'] as int,
       lastRefillSync: DateTime.tryParse(row['last_refill_sync'] as String) ??
           DateTime.now(),
+      mealTiming: MealTiming.values.byName(
+        row['meal_timing'] as String? ?? MealTiming.afterMeal.name,
+      ),
+      reminderHour: (row['reminder_hour'] as num?)?.toInt() ?? 8,
+      reminderMinute: (row['reminder_minute'] as num?)?.toInt() ?? 30,
+      lastTakenOn: DateTime.tryParse(row['last_taken_on'] as String? ?? ''),
+      lastMissedOn: DateTime.tryParse(row['last_missed_on'] as String? ?? ''),
       remindersEnabled: row['reminders_enabled'] == 1,
     );
   }

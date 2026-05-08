@@ -24,8 +24,9 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
   final TextEditingController _tabletsPerDoseController =
       TextEditingController(text: '1');
 
-  MedicineTimeSlot _selectedPeriod = MedicineTimeSlot.morning;
+  MealTiming _selectedMealTiming = MealTiming.afterMeal;
   String? _selectedProfileId;
+  TimeOfDay _selectedReminderTime = const TimeOfDay(hour: 8, minute: 30);
 
   @override
   void initState() {
@@ -124,25 +125,58 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<MedicineTimeSlot>(
-                    initialValue: _selectedPeriod,
-                    items: MedicineTimeSlot.values
-                        .map(
-                          (period) => DropdownMenuItem(
-                            value: period,
+                  InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: _pickReminderTime,
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Reminder clock time',
+                        border: OutlineInputBorder(),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.schedule_outlined),
+                          const SizedBox(width: 12),
+                          Expanded(
                             child: Text(
-                              period.name[0].toUpperCase() +
-                                  period.name.substring(1),
+                              _selectedReminderTime.format(context),
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                          const Text('Change'),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<MealTiming>(
+                    initialValue: _selectedMealTiming,
+                    items: MealTiming.values
+                        .map(
+                          (timing) => DropdownMenuItem(
+                            value: timing,
+                            child: Text(
+                              timing == MealTiming.beforeMeal
+                                  ? 'Before meal'
+                                  : 'After meal',
                             ),
                           ),
                         )
                         .toList(),
                     onChanged: (value) => setState(
-                      () => _selectedPeriod = value ?? MedicineTimeSlot.morning,
+                      () => _selectedMealTiming = value ?? MealTiming.afterMeal,
                     ),
                     decoration: const InputDecoration(
-                      labelText: 'Reminder time',
+                      labelText: 'Meal timing',
                       border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'This will be grouped as ${_periodLabel(_periodFromTime(_selectedReminderTime))} medicine in the dashboard.',
+                      style: const TextStyle(color: Color(0xFF64748B)),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -198,7 +232,9 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
       profileId: _selectedProfileId!,
       name: _nameController.text.trim(),
       dosage: _dosageController.text.trim(),
-      period: _selectedPeriod,
+      mealTiming: _selectedMealTiming,
+      reminderHour: _selectedReminderTime.hour,
+      reminderMinute: _selectedReminderTime.minute,
       totalTablets: int.tryParse(_totalTabletsController.text) ?? 10,
       tabletsPerDose: int.tryParse(_tabletsPerDoseController.text) ?? 1,
     );
@@ -208,5 +244,31 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
     }
 
     Navigator.of(context).pop(true);
+  }
+
+  Future<void> _pickReminderTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _selectedReminderTime,
+    );
+    if (picked == null) {
+      return;
+    }
+    setState(() => _selectedReminderTime = picked);
+  }
+
+  MedicineTimeSlot _periodFromTime(TimeOfDay time) {
+    return medicineTimeSlotForHour(time.hour);
+  }
+
+  String _periodLabel(MedicineTimeSlot slot) {
+    switch (slot) {
+      case MedicineTimeSlot.morning:
+        return 'morning';
+      case MedicineTimeSlot.afternoon:
+        return 'afternoon';
+      case MedicineTimeSlot.night:
+        return 'night';
+    }
   }
 }

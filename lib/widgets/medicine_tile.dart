@@ -9,6 +9,7 @@ class MedicineTile extends StatelessWidget {
     required this.profile,
     required this.onDelete,
     required this.onTaken,
+    required this.onMissed,
     required this.onAddTablets,
   });
 
@@ -16,6 +17,7 @@ class MedicineTile extends StatelessWidget {
   final FamilyMember? profile;
   final VoidCallback onDelete;
   final VoidCallback onTaken;
+  final VoidCallback onMissed;
   final VoidCallback onAddTablets;
 
   int _daysRemaining() {
@@ -29,6 +31,7 @@ class MedicineTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final daysRemaining = _daysRemaining();
+    final formattedTime = _formatReminderTime();
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -62,7 +65,7 @@ class MedicineTile extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '${medicine.dosage.isEmpty ? 'Dosage not added' : medicine.dosage} - ${medicine.period.name}',
+                        '${medicine.dosage.isEmpty ? 'Dosage not added' : medicine.dosage} - $formattedTime - ${medicine.mealTiming == MealTiming.beforeMeal ? 'before meal' : 'after meal'}',
                         style: theme.textTheme.bodyMedium,
                       ),
                     ],
@@ -81,6 +84,7 @@ class MedicineTile extends StatelessWidget {
               children: [
                 _InfoChip(
                     label: profile == null ? 'No profile' : profile!.name),
+                _InfoChip(label: medicine.period.name),
                 _InfoChip(label: '${medicine.remainingTablets} tablets left'),
                 _InfoChip(label: '$daysRemaining day supply'),
                 if (medicine.isLowStock)
@@ -104,6 +108,11 @@ class MedicineTile extends StatelessWidget {
                     label: const Text('Mark as taken'),
                   ),
                   OutlinedButton.icon(
+                    onPressed: onMissed,
+                    icon: const Icon(Icons.cancel_outlined),
+                    label: const Text('Mark missed'),
+                  ),
+                  OutlinedButton.icon(
                     onPressed: onAddTablets,
                     icon: const Icon(Icons.add),
                     label: const Text('Add tablets'),
@@ -115,6 +124,14 @@ class MedicineTile extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _formatReminderTime() {
+    final hour = medicine.reminderHour;
+    final minute = medicine.reminderMinute.toString().padLeft(2, '0');
+    final normalizedHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+    final suffix = hour >= 12 ? 'PM' : 'AM';
+    return '$normalizedHour:$minute $suffix';
   }
 }
 

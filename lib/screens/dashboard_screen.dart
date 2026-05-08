@@ -13,6 +13,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   MetricType _selectedType = MetricType.bloodPressure;
   String? _selectedProfileId;
   final TextEditingController _valueController = TextEditingController();
+  DateTime _selectedDate = DateTime.now();
 
   @override
   void dispose() {
@@ -126,6 +127,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       border: const OutlineInputBorder(),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  InkWell(
+                    onTap: () async {
+                      final pickedDate = await showDatePicker(
+                        context: context,
+                        initialDate: _selectedDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                      );
+
+                      if (pickedDate == null) {
+                        return;
+                      }
+
+                      setState(() {
+                        _selectedDate = DateTime(
+                          pickedDate.year,
+                          pickedDate.month,
+                          pickedDate.day,
+                          DateTime.now().hour,
+                          DateTime.now().minute,
+                        );
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Record date',
+                        border: OutlineInputBorder(),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(_formatDateOnly(_selectedDate)),
+                          const Icon(Icons.calendar_today_outlined),
+                        ],
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 14),
                   SizedBox(
                     width: double.infinity,
@@ -142,6 +182,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           profileId: _selectedProfileId!,
                           type: _selectedType,
                           value: value,
+                          recordedAt: _selectedDate,
                         );
                         _valueController.clear();
                       },
@@ -201,6 +242,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final hour = dateTime.hour.toString().padLeft(2, '0');
     final minute = dateTime.minute.toString().padLeft(2, '0');
     return '$day/$month/$year $hour:$minute';
+  }
+
+  String _formatDateOnly(DateTime dateTime) {
+    final day = dateTime.day.toString().padLeft(2, '0');
+    final month = dateTime.month.toString().padLeft(2, '0');
+    final year = dateTime.year.toString();
+    return '$day/$month/$year';
   }
 
   String _trendLabel(List<HealthMetric> metrics) {
