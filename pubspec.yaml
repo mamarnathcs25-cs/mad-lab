@@ -11,6 +11,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_typeahead: ^5.2.0
   image_picker: ^1.2.2
   google_mlkit_text_recognition: ^0.15.1
   sqflite: ^2.3.3+1
@@ -24,3 +25,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/medicines.json

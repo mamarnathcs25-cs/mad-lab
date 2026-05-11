@@ -1,22 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:medapp/app_scope.dart';
+import 'package:medapp/models/medicine_catalog_item.dart';
 import 'package:medapp/models/medicine_model.dart';
+import 'package:medapp/services/medicine_service.dart';
+import 'package:medapp/widgets/medicine_autocomplete_field.dart';
 
 class AddMedicineScreen extends StatefulWidget {
   const AddMedicineScreen({
     super.key,
     this.initialMedicineName = '',
     this.initialDosage = '',
+    this.initialMealTiming,
+    this.initialReminderHour = 8,
+    this.initialReminderMinute = 30,
   });
 
   final String initialMedicineName;
   final String initialDosage;
+  final MealTiming? initialMealTiming;
+  final int initialReminderHour;
+  final int initialReminderMinute;
 
   @override
   State<AddMedicineScreen> createState() => _AddMedicineScreenState();
 }
 
 class _AddMedicineScreenState extends State<AddMedicineScreen> {
+  final MedicineService _medicineService = MedicineService();
   late final TextEditingController _nameController;
   late final TextEditingController _dosageController;
   final TextEditingController _totalTabletsController =
@@ -24,15 +34,21 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
   final TextEditingController _tabletsPerDoseController =
       TextEditingController(text: '1');
 
-  MealTiming _selectedMealTiming = MealTiming.afterMeal;
+  late MealTiming _selectedMealTiming;
   String? _selectedProfileId;
-  TimeOfDay _selectedReminderTime = const TimeOfDay(hour: 8, minute: 30);
+  late TimeOfDay _selectedReminderTime;
+  MedicineCatalogItem? _selectedSuggestion;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.initialMedicineName);
     _dosageController = TextEditingController(text: widget.initialDosage);
+    _selectedMealTiming = widget.initialMealTiming ?? MealTiming.afterMeal;
+    _selectedReminderTime = TimeOfDay(
+      hour: widget.initialReminderHour,
+      minute: widget.initialReminderMinute,
+    );
   }
 
   @override
@@ -108,12 +124,11 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  MedicineAutocompleteField(
                     controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Medicine name',
-                      border: OutlineInputBorder(),
-                    ),
+                    service: _medicineService,
+                    onSuggestionSelected: _handleSuggestionSelected,
+                    onCleared: () => setState(() => _selectedSuggestion = null),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -124,6 +139,10 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                       border: OutlineInputBorder(),
                     ),
                   ),
+                  if (_selectedSuggestion != null) ...[
+                    const SizedBox(height: 12),
+                    _MedicineDetailsCard(suggestion: _selectedSuggestion!),
+                  ],
                   const SizedBox(height: 12),
                   InkWell(
                     borderRadius: BorderRadius.circular(16),
@@ -246,6 +265,13 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
     Navigator.of(context).pop(true);
   }
 
+  void _handleSuggestionSelected(MedicineCatalogItem suggestion) {
+    setState(() {
+      _selectedSuggestion = suggestion;
+      _dosageController.text = suggestion.dosage;
+    });
+  }
+
   Future<void> _pickReminderTime() async {
     final picked = await showTimePicker(
       context: context,
@@ -270,5 +296,76 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
       case MedicineTimeSlot.night:
         return 'night';
     }
+  }
+}
+
+class _MedicineDetailsCard extends StatelessWidget {
+  const _MedicineDetailsCard({required this.suggestion});
+
+  final MedicineCatalogItem suggestion;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0FDFA),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF99F6E4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.verified_outlined, color: Color(0xFF0F766E)),
+              const SizedBox(width: 8),
+              Text(
+                'Selected Medicine',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _DetailRow(label: 'Name', value: suggestion.name),
+          _DetailRow(label: 'Dosage', value: suggestion.dosage),
+          _DetailRow(label: 'Category', value: suggestion.category),
+          _DetailRow(label: 'Usage', value: suggestion.usage),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 68,
+            child: Text(
+              '$label:',
+              style: const TextStyle(
+                color: Color(0xFF0F766E),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
   }
 }

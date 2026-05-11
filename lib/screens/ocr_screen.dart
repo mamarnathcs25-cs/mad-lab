@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:medapp/app_scope.dart';
+import 'package:medapp/models/medicine_model.dart';
 import 'package:medapp/models/prescription_result.dart';
 import 'package:medapp/screens/add_medicine_screen.dart';
 import 'package:medapp/services/prescription_parser.dart';
@@ -20,6 +22,7 @@ class _OCRScreenState extends State<OCRScreen> {
 
   bool _isLoading = true;
   PrescriptionResult? _result;
+  List<PrescriptionEntry> _remainingEntries = [];
   String? _error;
 
   @override
@@ -38,6 +41,7 @@ class _OCRScreenState extends State<OCRScreen> {
 
       setState(() {
         _result = _parser.parse(recognizedText.text);
+        _remainingEntries = List<PrescriptionEntry>.from(_result!.entries);
         _isLoading = false;
       });
     } catch (error) {
@@ -51,6 +55,10 @@ class _OCRScreenState extends State<OCRScreen> {
   @override
   Widget build(BuildContext context) {
     final result = _result;
+    final dosageLines = _remainingEntries
+        .map((entry) => entry.dosageLine)
+        .where((line) => line.isNotEmpty)
+        .toList();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Prescription Results')),
@@ -66,47 +74,39 @@ class _OCRScreenState extends State<OCRScreen> {
                         _SectionCard(
                           title: 'Suggested Medicines',
                           icon: Icons.medication_outlined,
-                          child: result.medicineNames.isEmpty
+                          child: _remainingEntries.isEmpty
                               ? const Text(
-                                  'No medicine names confidently detected.')
-                              : Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: result.medicineNames.map((name) {
-                                    final matchedDosage =
-                                        result.dosageLines.isEmpty
-                                            ? ''
-                                            : result.dosageLines.first;
-                                    return ActionChip(
-                                      label: Text(name),
-                                      avatar: const Icon(
-                                        Icons.local_hospital_outlined,
-                                        size: 18,
+                                  'All scanned medicines have been added or no clear medicines were detected.')
+                              : Column(
+                                  children: _remainingEntries.map((entry) {
+                                    return Card(
+                                      margin: const EdgeInsets.only(bottom: 10),
+                                      child: ListTile(
+                                        contentPadding: const EdgeInsets.all(12),
+                                        leading: const CircleAvatar(
+                                          child: Icon(
+                                            Icons.local_hospital_outlined,
+                                          ),
+                                        ),
+                                        title: Text(
+                                          entry.name,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        subtitle: Text(
+                                          entry.dosageLine.isEmpty
+                                              ? entry.sourceLine
+                                              : entry.dosageLine,
+                                        ),
+                                        trailing: FilledButton(
+                                          onPressed: () => _openSingleAdd(
+                                            context: context,
+                                            entry: entry,
+                                          ),
+                                          child: const Text('Add'),
+                                        ),
                                       ),
-                                      onPressed: () async {
-                                        final saved =
-                                            await Navigator.of(context)
-                                                .push<bool>(
-                                          MaterialPageRoute(
-                                            builder: (_) => AddMedicineScreen(
-                                              initialMedicineName: name,
-                                              initialDosage: matchedDosage,
-                                            ),
-                                          ),
-                                        );
-
-                                        if (!context.mounted || saved != true) {
-                                          return;
-                                        }
-
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                                '$name added to reminders'),
-                                          ),
-                                        );
-                                      },
                                     );
                                   }).toList(),
                                 ),
@@ -115,10 +115,10 @@ class _OCRScreenState extends State<OCRScreen> {
                         _SectionCard(
                           title: 'Dosage Lines',
                           icon: Icons.notes_outlined,
-                          child: result.dosageLines.isEmpty
+                          child: dosageLines.isEmpty
                               ? const Text('No dosage text detected.')
                               : Column(
-                                  children: result.dosageLines
+                                  children: dosageLines
                                       .map(
                                         (line) => ListTile(
                                           contentPadding: EdgeInsets.zero,
@@ -131,35 +131,13 @@ class _OCRScreenState extends State<OCRScreen> {
                                 ),
                         ),
                         const SizedBox(height: 12),
-                        if (result.medicineNames.isNotEmpty)
+                        if (_remainingEntries.isNotEmpty)
                           FilledButton.icon(
-                            onPressed: () async {
-                              final saved =
-                                  await Navigator.of(context).push<bool>(
-                                MaterialPageRoute(
-                                  builder: (_) => AddMedicineScreen(
-                                    initialMedicineName:
-                                        result.medicineNames.first,
-                                    initialDosage: result.dosageLines.isEmpty
-                                        ? ''
-                                        : result.dosageLines.first,
-                                  ),
-                                ),
-                              );
-
-                              if (!context.mounted || saved != true) {
-                                return;
-                              }
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content:
-                                      Text('Medicine added from prescription'),
-                                ),
-                              );
-                            },
+                            onPressed: () => _openBulkAdd(context),
                             icon: const Icon(Icons.auto_fix_high_outlined),
-                            label: const Text('Auto-fill into Reminder'),
+                            label: Text(
+                              'Add All ${_remainingEntries.length} Medicines',
+                            ),
                           ),
                         const SizedBox(height: 12),
                         _SectionCard(
@@ -171,6 +149,62 @@ class _OCRScreenState extends State<OCRScreen> {
                         ),
                       ],
                     ),
+    );
+  }
+
+  Future<void> _openSingleAdd({
+    required BuildContext context,
+    required PrescriptionEntry entry,
+  }) async {
+    final initialTime = _defaultTimeForSlot(
+      entry.suggestedSlots.isEmpty ? null : entry.suggestedSlots.first,
+    );
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => AddMedicineScreen(
+          initialMedicineName: entry.name,
+          initialDosage: entry.dosageLine,
+          initialMealTiming: entry.suggestedMealTiming,
+          initialReminderHour: initialTime.$1,
+          initialReminderMinute: initialTime.$2,
+        ),
+      ),
+    );
+
+    if (!context.mounted || saved != true) {
+      return;
+    }
+
+    setState(() {
+      _remainingEntries.removeWhere(
+        (item) => item.name == entry.name && item.sourceLine == entry.sourceLine,
+      );
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${entry.name} added to reminders')),
+    );
+  }
+
+  Future<void> _openBulkAdd(BuildContext context) async {
+    final savedNames = await Navigator.of(context).push<List<String>>(
+      MaterialPageRoute(
+        builder: (_) => _BulkPrescriptionAddScreen(entries: _remainingEntries),
+      ),
+    );
+
+    if (!context.mounted || savedNames == null || savedNames.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _remainingEntries.removeWhere(
+        (entry) => savedNames.contains(entry.name),
+      );
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${savedNames.length} medicines added to reminders')),
     );
   }
 }
@@ -212,5 +246,262 @@ class _SectionCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _BulkPrescriptionAddScreen extends StatefulWidget {
+  const _BulkPrescriptionAddScreen({required this.entries});
+
+  final List<PrescriptionEntry> entries;
+
+  @override
+  State<_BulkPrescriptionAddScreen> createState() =>
+      _BulkPrescriptionAddScreenState();
+}
+
+class _BulkPrescriptionAddScreenState extends State<_BulkPrescriptionAddScreen> {
+  final TextEditingController _totalTabletsController =
+      TextEditingController(text: '10');
+  final TextEditingController _tabletsPerDoseController =
+      TextEditingController(text: '1');
+  MealTiming _selectedMealTiming = MealTiming.afterMeal;
+  TimeOfDay _fallbackReminderTime = const TimeOfDay(hour: 8, minute: 30);
+  String? _selectedProfileId;
+  final Set<int> _selectedIndexes = <int>{};
+
+  @override
+  void initState() {
+    super.initState();
+    for (var i = 0; i < widget.entries.length; i++) {
+      _selectedIndexes.add(i);
+    }
+  }
+
+  @override
+  void dispose() {
+    _totalTabletsController.dispose();
+    _tabletsPerDoseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = AppScope.of(context);
+    final profiles = controller.profiles;
+    _selectedProfileId ??= profiles.isNotEmpty ? profiles.first.id : null;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Add Scanned Medicines')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: _selectedProfileId,
+                    items: profiles
+                        .map(
+                          (profile) => DropdownMenuItem<String>(
+                            value: profile.id,
+                            child: Text('${profile.name} (${profile.relationship})'),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) =>
+                        setState(() => _selectedProfileId = value),
+                    decoration: const InputDecoration(labelText: 'Profile'),
+                  ),
+                  const SizedBox(height: 12),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: _pickReminderTime,
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Fallback reminder time',
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.schedule_outlined),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(_fallbackReminderTime.format(context)),
+                          ),
+                          const Text('Change'),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Detected morning/afternoon/night instructions will be used automatically. This time is only used when OCR cannot detect a schedule.',
+                      style: TextStyle(color: Color(0xFF64748B)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<MealTiming>(
+                    initialValue: _selectedMealTiming,
+                    items: MealTiming.values
+                        .map(
+                          (timing) => DropdownMenuItem(
+                            value: timing,
+                            child: Text(
+                              timing == MealTiming.beforeMeal
+                                  ? 'Before meal'
+                                  : 'After meal',
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) => setState(
+                      () => _selectedMealTiming = value ?? MealTiming.afterMeal,
+                    ),
+                    decoration: const InputDecoration(labelText: 'Meal timing'),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _totalTabletsController,
+                          keyboardType: TextInputType.number,
+                          decoration:
+                              const InputDecoration(labelText: 'Total tablets'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: _tabletsPerDoseController,
+                          keyboardType: TextInputType.number,
+                          decoration:
+                              const InputDecoration(labelText: 'Tablets per day'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          ...widget.entries.asMap().entries.map((entry) {
+            final index = entry.key;
+            final item = entry.value;
+            return CheckboxListTile(
+              value: _selectedIndexes.contains(index),
+              onChanged: (selected) {
+                setState(() {
+                  if (selected == true) {
+                    _selectedIndexes.add(index);
+                  } else {
+                    _selectedIndexes.remove(index);
+                  }
+                });
+              },
+              title: Text(item.name),
+              subtitle: Text(
+                [
+                  item.dosageLine.isEmpty ? item.sourceLine : item.dosageLine,
+                  if (item.suggestedSlots.isNotEmpty)
+                    'Detected: ${item.suggestedSlots.map(_slotLabel).join(', ')}',
+                  if (item.suggestedMealTiming != null)
+                    item.suggestedMealTiming == MealTiming.beforeMeal
+                        ? 'Before meal'
+                        : 'After meal',
+                ].join('\n'),
+              ),
+              controlAffinity: ListTileControlAffinity.leading,
+              isThreeLine: true,
+            );
+          }),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: profiles.isEmpty || _selectedIndexes.isEmpty ? null : _saveAll,
+            child: Text('Save ${_selectedIndexes.length} reminders'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickReminderTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _fallbackReminderTime,
+    );
+    if (picked != null) {
+      setState(() => _fallbackReminderTime = picked);
+    }
+  }
+
+  Future<void> _saveAll() async {
+    final controller = AppScope.of(context);
+    final profileId = _selectedProfileId;
+    if (profileId == null) {
+      return;
+    }
+
+    final totalTablets = int.tryParse(_totalTabletsController.text) ?? 10;
+    final tabletsPerDose = int.tryParse(_tabletsPerDoseController.text) ?? 1;
+    final savedNames = <String>[];
+
+    for (final index in _selectedIndexes.toList()..sort()) {
+      final entry = widget.entries[index];
+      final slots = entry.suggestedSlots.isEmpty
+          ? <MedicineTimeSlot>[
+              medicineTimeSlotForHour(_fallbackReminderTime.hour),
+            ]
+          : entry.suggestedSlots;
+      for (final slot in slots) {
+        final reminderTime = entry.suggestedSlots.isEmpty
+            ? (_fallbackReminderTime.hour, _fallbackReminderTime.minute)
+            : _defaultTimeForSlot(slot);
+        await controller.addMedicine(
+          profileId: profileId,
+          name: entry.name,
+          dosage: entry.dosageLine,
+          mealTiming: entry.suggestedMealTiming ?? _selectedMealTiming,
+          reminderHour: reminderTime.$1,
+          reminderMinute: reminderTime.$2,
+          totalTablets: totalTablets,
+          tabletsPerDose: tabletsPerDose,
+        );
+      }
+      savedNames.add(entry.name);
+    }
+
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).pop(savedNames);
+  }
+
+  String _slotLabel(MedicineTimeSlot slot) {
+    switch (slot) {
+      case MedicineTimeSlot.morning:
+        return 'morning';
+      case MedicineTimeSlot.afternoon:
+        return 'afternoon';
+      case MedicineTimeSlot.night:
+        return 'night';
+    }
+  }
+}
+
+(int, int) _defaultTimeForSlot(MedicineTimeSlot? slot) {
+  switch (slot) {
+    case MedicineTimeSlot.morning:
+      return (8, 0);
+    case MedicineTimeSlot.afternoon:
+      return (14, 0);
+    case MedicineTimeSlot.night:
+      return (20, 0);
+    case null:
+      return (8, 30);
   }
 }
