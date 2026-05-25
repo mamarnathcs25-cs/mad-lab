@@ -71,6 +71,35 @@ class _OCRScreenState extends State<OCRScreen> {
                   : ListView(
                       padding: const EdgeInsets.all(16),
                       children: [
+                        if (result.entries.isEmpty)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF7ED),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: const Color(0xFFF59E0B)),
+                            ),
+                            child: const Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.info_outline,
+                                  color: Color(0xFFB45309),
+                                ),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'No clear medicine line was detected from this scan. Try a straighter image, crop around the prescription item, or use a clearer photo.',
+                                    style: TextStyle(
+                                      color: Color(0xFF92400E),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         _SectionCard(
                           title: 'Suggested Medicines',
                           icon: Icons.medication_outlined,

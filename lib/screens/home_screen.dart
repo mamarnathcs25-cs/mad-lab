@@ -25,45 +25,51 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFF8FAFC), Color(0xFFECFEFF)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFF7FBFC), Color(0xFFECFEFF), Color(0xFFF8FAFC)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
         ),
         child: SafeArea(child: _screens[_currentIndex]),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        height: 72,
-        onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.alarm_outlined),
-            selectedIcon: Icon(Icons.alarm),
-            label: 'Reminders',
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: NavigationBar(
+            selectedIndex: _currentIndex,
+            height: 76,
+            onDestinationSelected: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.alarm_outlined),
+                selectedIcon: Icon(Icons.alarm),
+                label: 'Reminders',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.document_scanner_outlined),
+                selectedIcon: Icon(Icons.document_scanner),
+                label: 'Scan',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.family_restroom_outlined),
+                selectedIcon: Icon(Icons.family_restroom),
+                label: 'Family',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.monitor_heart_outlined),
+                selectedIcon: Icon(Icons.monitor_heart),
+                label: 'Dashboard',
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.document_scanner_outlined),
-            selectedIcon: Icon(Icons.document_scanner),
-            label: 'Scan',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.family_restroom_outlined),
-            selectedIcon: Icon(Icons.family_restroom),
-            label: 'Family',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.monitor_heart_outlined),
-            selectedIcon: Icon(Icons.monitor_heart),
-            label: 'Dashboard',
-          ),
-        ],
+        ),
       ),
     );
   }

@@ -184,37 +184,78 @@ class _HeroBanner extends StatelessWidget {
     final lowStockSoon = controller.lowStockSoonCount();
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF134E4A), Color(0xFF0F766E), Color(0xFF14B8A6)],
+          colors: [Color(0xFF0B3B39), Color(0xFF0F766E), Color(0xFF2DD4BF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(28),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x220F766E),
+            blurRadius: 28,
+            offset: Offset(0, 18),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'MediMate',
-            style: TextStyle(
-              color: Colors.white70,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.2,
-            ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.favorite_outline,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'MediMate',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.4,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           const Text(
             'Stay on top of medicines without the stress.',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 22,
+              fontSize: 24,
               fontWeight: FontWeight.w800,
+              height: 1.15,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text(
             'You have $tonightCount medicines tonight and $lowStockSoon low-stock reminders to review.',
             style: const TextStyle(color: Colors.white70, height: 1.4),
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _HeroPill(
+                icon: Icons.nightlight_round,
+                label: '$tonightCount tonight',
+              ),
+              _HeroPill(
+                icon: Icons.inventory_2_outlined,
+                label: '$lowStockSoon low stock',
+              ),
+            ],
           ),
         ],
       ),
@@ -282,9 +323,16 @@ class _InsightCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Colors.white.withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0F0F172A),
+            blurRadius: 16,
+            offset: Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -341,7 +389,11 @@ class _SectionHeader extends StatelessWidget {
           ),
         ),
         if (actionLabel != null && onAction != null)
-          TextButton(onPressed: onAction, child: Text(actionLabel!)),
+          TextButton.icon(
+            onPressed: onAction,
+            icon: const Icon(Icons.arrow_outward, size: 18),
+            label: Text(actionLabel!),
+          ),
       ],
     );
   }
@@ -363,9 +415,16 @@ class _EmptyPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Colors.white.withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x100F172A),
+            blurRadius: 18,
+            offset: Offset(0, 12),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -382,6 +441,42 @@ class _EmptyPanel extends StatelessWidget {
             subtitle,
             textAlign: TextAlign.center,
             style: const TextStyle(color: Color(0xFF64748B)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroPill extends StatelessWidget {
+  const _HeroPill({
+    required this.icon,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: Colors.white),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),

@@ -9,9 +9,21 @@ class SymptomSupportResult {
   });
 
   final String possibleIssue;
-  final List<String> medicineSuggestions;
+  final List<SymptomMedicineSuggestion> medicineSuggestions;
   final List<String> careAdvice;
   final List<String> warningAdvice;
   final String disclaimer;
   final List<String> currentMedicineWarnings;
+}
+
+class SymptomMedicineSuggestion {
+  SymptomMedicineSuggestion({
+    required this.commonMedicine,
+    required this.howItHelps,
+    required this.importantWarning,
+  });
+
+  final String commonMedicine;
+  final String howItHelps;
+  final String importantWarning;
 }

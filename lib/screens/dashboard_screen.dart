@@ -38,12 +38,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           Container(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF1D4ED8), Color(0xFF06B6D4)],
+                colors: [Color(0xFF1E3A8A), Color(0xFF2563EB), Color(0xFF22D3EE)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(24),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x221D4ED8),
+                  blurRadius: 26,
+                  offset: Offset(0, 16),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -60,8 +69,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   trend,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 22,
+                    fontSize: 24,
                     fontWeight: FontWeight.w800,
+                    height: 1.15,
                   ),
                 ),
               ],
@@ -198,9 +208,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
             height: 280,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Colors.white.withValues(alpha: 0.96),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x100F172A),
+                  blurRadius: 18,
+                  offset: Offset(0, 12),
+                ),
+              ],
             ),
             child: metrics.isEmpty
                 ? const Center(
@@ -208,6 +225,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 : _SimpleMetricChart(metrics: metrics),
           ),
           const SizedBox(height: 16),
+          if (metrics.isNotEmpty)
+            Row(
+              children: [
+                Expanded(
+                  child: _MetricSummaryCard(
+                    label: 'Latest',
+                    value:
+                        '${metrics.last.value.toStringAsFixed(1)} ${metrics.last.unit}',
+                    accent: const Color(0xFF1D4ED8),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _MetricSummaryCard(
+                    label: 'Entries',
+                    value: metrics.length.toString(),
+                    accent: const Color(0xFF0F766E),
+                  ),
+                ),
+              ],
+            ),
+          if (metrics.isNotEmpty) const SizedBox(height: 16),
           ...metrics.reversed.map(
             (metric) => Card(
               child: ListTile(
@@ -265,6 +304,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return '${_metricTitle(_selectedType)} is improving from the last reading.';
     }
     return '${_metricTitle(_selectedType)} is stable right now.';
+  }
+}
+
+class _MetricSummaryCard extends StatelessWidget {
+  const _MetricSummaryCard({
+    required this.label,
+    required this.value,
+    required this.accent,
+  });
+
+  final String label;
+  final String value;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(color: Color(0xFF64748B))),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              color: accent,
+              fontWeight: FontWeight.w800,
+              fontSize: 18,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

@@ -40,12 +40,21 @@ class _SymptomSupportScreenState extends State<SymptomSupportScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           Container(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF7C2D12), Color(0xFFEA580C)],
+                colors: [Color(0xFF7C2D12), Color(0xFFEA580C), Color(0xFFFB923C)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(24),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x22EA580C),
+                  blurRadius: 24,
+                  offset: Offset(0, 16),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -62,7 +71,7 @@ class _SymptomSupportScreenState extends State<SymptomSupportScreen> {
                   '${profile.name}, age ${profile.age}, ${profile.weightKg.toStringAsFixed(1)} kg',
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 22,
+                    fontSize: 24,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -70,6 +79,15 @@ class _SymptomSupportScreenState extends State<SymptomSupportScreen> {
                 Text(
                   'Current medicines tracked: ${currentMedicines.length}',
                   style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _HeroTag(label: '${profile.age} years'),
+                    _HeroTag(label: '${profile.weightKg.toStringAsFixed(1)} kg'),
+                  ],
                 ),
               ],
             ),
@@ -155,11 +173,11 @@ class _SymptomSupportScreenState extends State<SymptomSupportScreen> {
             _SupportCard(
               title: 'Medicine Support Suggestion',
               color: const Color(0xFFDCFCE7),
-              child: Column(
-                children: _result!.medicineSuggestions
-                    .map((item) => _BulletText(text: item))
-                    .toList(),
-              ),
+              child: _result!.medicineSuggestions.isEmpty
+                  ? const Text('No medicine suggestion available.')
+                  : _MedicineSuggestionCard(
+                      suggestion: _result!.medicineSuggestions.first,
+                    ),
             ),
             if (_result!.currentMedicineWarnings.isNotEmpty) ...[
               const SizedBox(height: 12),
@@ -224,6 +242,13 @@ class _SupportCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(22),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0F0F172A),
+            blurRadius: 14,
+            offset: Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -237,6 +262,30 @@ class _SupportCard extends StatelessWidget {
           const SizedBox(height: 10),
           child,
         ],
+      ),
+    );
+  }
+}
+
+class _HeroTag extends StatelessWidget {
+  const _HeroTag({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -262,6 +311,87 @@ class _BulletText extends StatelessWidget {
           Expanded(child: Text(text)),
         ],
       ),
+    );
+  }
+}
+
+class _MedicineSuggestionCard extends StatelessWidget {
+  const _MedicineSuggestionCard({required this.suggestion});
+
+  final SymptomMedicineSuggestion suggestion;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFBBF7D0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SuggestionRow(
+            label: 'Common medicine',
+            value: suggestion.commonMedicine,
+            icon: Icons.medication_outlined,
+          ),
+          const SizedBox(height: 10),
+          _SuggestionRow(
+            label: 'How it helps',
+            value: suggestion.howItHelps,
+            icon: Icons.health_and_safety_outlined,
+          ),
+          const SizedBox(height: 10),
+          _SuggestionRow(
+            label: 'Important warning',
+            value: suggestion.importantWarning,
+            icon: Icons.warning_amber_rounded,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SuggestionRow extends StatelessWidget {
+  const _SuggestionRow({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: const Color(0xFF15803D)),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF166534),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(value),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

@@ -7,9 +7,18 @@ class PrescriptionParser {
     r'^(?:tab|tablet|cap|capsule|syrup|drops|puff)\.?\s*',
     caseSensitive: false,
   );
+  static final RegExp _sectionDividerPattern = RegExp(r'^[-_=]{3,}$');
   static final RegExp _frequencyPattern = RegExp(r'\b[0-2]-[0-2]-[0-2]\b');
   static final RegExp _timePattern = RegExp(
     r'\b\d{1,2}[:.]\d{2}\s?(?:am|pm)\b|\b\d{1,2}\s?(?:am|pm)\b',
+    caseSensitive: false,
+  );
+  static final RegExp _strengthPattern = RegExp(
+    r'\b\d+(?:\.\d+)?\s?(?:mg|ml|mcg|g)\b',
+    caseSensitive: false,
+  );
+  static final RegExp _formWordPattern = RegExp(
+    r'\b(?:tab|tablet|tablets|cap|capsule|capsules|syrup|drops|cream|ointment|gel|injection|suspension|solution|spray)\b',
     caseSensitive: false,
   );
   static final RegExp _ingredientLinePattern = RegExp(
@@ -100,15 +109,35 @@ class PrescriptionParser {
     'test findings',
   ];
 
+  static final List<String> _sectionStartMarkers = [
+    'medicine name',
+    'medicines',
+    'rx',
+    'endorsements',
+  ];
+
+  static final List<String> _sectionEndMarkers = [
+    'advice',
+    'follow up',
+    'follow-up',
+    'substitute with equivalent',
+    'signature',
+    'for dispenser',
+    'prescriber',
+  ];
+
   PrescriptionResult parse(String rawText) {
     final entries = <PrescriptionEntry>[];
     final seenNames = <String>{};
-    final lines = rawText
+    final allLines = rawText
         .split(RegExp(r'[\r\n]+'))
         .map((line) => line.trim())
-        .where((line) => line.isNotEmpty);
+        .where((line) => line.isNotEmpty)
+        .toList();
+    final lines = _extractMedicineSection(allLines);
 
-    for (final line in lines) {
+    for (var index = 0; index < lines.length; index++) {
+      final line = lines[index];
       final normalizedLine = line.trim();
       final lowerLine = normalizedLine.toLowerCase();
 
@@ -117,6 +146,9 @@ class PrescriptionParser {
         continue;
       }
       if (lowerLine.startsWith('tot') || lowerLine.contains('(tot:')) {
+        continue;
+      }
+      if (_sectionDividerPattern.hasMatch(normalizedLine)) {
         continue;
       }
       if (_ingredientLinePattern.hasMatch(normalizedLine) &&
@@ -129,24 +161,109 @@ class PrescriptionParser {
         continue;
       }
 
+      final supportingLines = <String>[];
+      var lookAhead = index + 1;
+      while (lookAhead < lines.length) {
+        final nextLine = lines[lookAhead].trim();
+        final nextLower = nextLine.toLowerCase();
+        if (nextLine.isEmpty ||
+            _sectionEndMarkers.any(nextLower.contains) ||
+            _looksLikePotentialMedicineStart(nextLine)) {
+          break;
+        }
+        if (_isSupportingInstructionLine(nextLine)) {
+          supportingLines.add(nextLine);
+        }
+        lookAhead++;
+      }
+
+      final combinedDosageLine = _combineDosageLine(
+        parsed.dosageLine,
+        supportingLines,
+      );
+      final combinedSourceLine = [
+        parsed.sourceLine,
+        ...supportingLines,
+      ].join(' | ');
+      final combinedScheduleSource = [
+        parsed.dosageLine,
+        ...supportingLines,
+      ].join(' ');
+      final finalSlots = _extractSlots(combinedScheduleSource);
+      final finalMealTiming =
+          _extractMealTiming([parsed.sourceLine, ...supportingLines].join(' ')) ??
+              parsed.suggestedMealTiming;
+
       final key = parsed.name.toLowerCase();
       if (seenNames.contains(key)) {
+        index = lookAhead - 1;
         continue;
       }
       seenNames.add(key);
-      entries.add(parsed);
+      entries.add(
+        PrescriptionEntry(
+          name: parsed.name,
+          dosageLine: combinedDosageLine,
+          sourceLine: combinedSourceLine,
+          suggestedSlots: finalSlots.isEmpty ? parsed.suggestedSlots : finalSlots,
+          suggestedMealTiming: finalMealTiming,
+        ),
+      );
+      index = lookAhead - 1;
     }
 
     return PrescriptionResult(rawText: rawText, entries: entries.take(8).toList());
   }
 
+  List<String> _extractMedicineSection(List<String> lines) {
+    var startIndex = -1;
+    var fallbackStartIndex = -1;
+
+    for (var index = 0; index < lines.length; index++) {
+      final lowerLine = lines[index].toLowerCase();
+      if (lowerLine == 'r' || lowerLine == 'rx') {
+        fallbackStartIndex = index + 1;
+      }
+      if (_sectionStartMarkers.any(lowerLine.contains)) {
+        startIndex = index + 1;
+        break;
+      }
+    }
+
+    if (startIndex == -1) {
+      startIndex = fallbackStartIndex;
+    }
+
+    if (startIndex == -1) {
+      return lines;
+    }
+
+    final section = <String>[];
+    for (var index = startIndex; index < lines.length; index++) {
+      final line = lines[index].trim();
+      final lowerLine = line.toLowerCase();
+      if (_sectionEndMarkers.any(lowerLine.contains)) {
+        break;
+      }
+      if (lowerLine == 'dosage' ||
+          lowerLine == 'duration' ||
+          lowerLine == 'medicine name' ||
+          _sectionDividerPattern.hasMatch(line)) {
+        continue;
+      }
+      section.add(line);
+    }
+
+    return section.isEmpty ? lines : section;
+  }
+
   PrescriptionEntry? _parseMedicineRow(String line) {
-    final isNumberedRow = _rowPrefixPattern.hasMatch(line);
-    final startsLikeMedicine = _medicineFormPattern.hasMatch(line);
-    if (!isNumberedRow && !startsLikeMedicine) {
+    if (!_looksLikePotentialMedicineStart(line)) {
       return null;
     }
 
+    final isNumberedRow = _rowPrefixPattern.hasMatch(line);
+    final startsLikeMedicine = _medicineFormPattern.hasMatch(line);
     if (_timePattern.hasMatch(line) && !startsLikeMedicine) {
       return null;
     }
@@ -187,6 +304,31 @@ class PrescriptionParser {
 
   String? _extractMedicineName(String source) {
     var candidate = source.replaceFirst(_medicineFormPattern, '').trim();
+    candidate = candidate.replaceFirst(
+      RegExp(
+        r'\b\d+\s*(?:morning|afternoon|night|evening|noon)\b.*$',
+        caseSensitive: false,
+      ),
+      '',
+    ).trim();
+    candidate = candidate.replaceFirst(
+      RegExp(
+        r'\b(?:od|bd|tds|tid|hs|sos)\b.*$',
+        caseSensitive: false,
+      ),
+      '',
+    ).trim();
+    candidate = candidate.replaceFirst(
+      RegExp(r'\b\d+\s*days?\b.*$', caseSensitive: false),
+      '',
+    ).trim();
+    candidate = candidate.replaceFirst(
+      RegExp(
+        r'\b(?:before|after)\s+(?:food|meal)\b.*$',
+        caseSensitive: false,
+      ),
+      '',
+    ).trim();
     candidate = candidate.replaceAll(RegExp(r'\s*\(.*?\)\s*'), ' ').trim();
     candidate = candidate.replaceAll(RegExp(r'\s{2,}'), ' ');
     candidate = candidate.replaceAll(
@@ -196,6 +338,9 @@ class PrescriptionParser {
     if (candidate.isEmpty) {
       return null;
     }
+    if (!_looksLikeMedicineName(candidate)) {
+      return null;
+    }
     if (candidate.toLowerCase().startsWith('tot')) {
       return null;
     }
@@ -203,6 +348,46 @@ class PrescriptionParser {
       return null;
     }
     return candidate;
+  }
+
+  bool _looksLikePotentialMedicineStart(String line) {
+    final normalized = line.trim();
+    final lower = normalized.toLowerCase();
+    if (normalized.isEmpty ||
+        _ignoredLineStarts.any(lower.startsWith) ||
+        _ignoredLineContains.any(lower.contains) ||
+        _sectionEndMarkers.any(lower.contains)) {
+      return false;
+    }
+    if (lower.startsWith('take ') ||
+        lower.startsWith('supply') ||
+        lower.contains('no more items on this prescription')) {
+      return false;
+    }
+
+    final isNumberedRow = _rowPrefixPattern.hasMatch(normalized);
+    final startsLikeMedicine = _medicineFormPattern.hasMatch(normalized);
+    final looksLikeStandaloneMedicine = _looksLikeStandaloneMedicineLine(normalized);
+
+    if (!isNumberedRow && !startsLikeMedicine && !looksLikeStandaloneMedicine) {
+      return false;
+    }
+
+    final withoutPrefix = normalized.replaceFirst(_rowPrefixPattern, '').trim();
+    final firstColumn = withoutPrefix
+        .split(RegExp(r'\s{2,}'))
+        .map((part) => part.trim())
+        .firstWhere((part) => part.isNotEmpty, orElse: () => withoutPrefix);
+    final name = _extractMedicineName(firstColumn);
+    if (name == null || _looksLikeScheduleOnly(name)) {
+      return false;
+    }
+
+    if (isNumberedRow && !_hasMedicineClue(normalized) && !startsLikeMedicine) {
+      return false;
+    }
+
+    return true;
   }
 
   bool _looksLikeScheduleOnly(String candidate) {
@@ -231,6 +416,120 @@ class PrescriptionParser {
       return true;
     }
     return false;
+  }
+
+  bool _looksLikeStandaloneMedicineLine(String line) {
+    if (!_hasMedicineClue(line)) {
+      return false;
+    }
+    if (!RegExp(r'[A-Za-z]{4,}').hasMatch(line)) {
+      return false;
+    }
+    return true;
+  }
+
+  bool _hasMedicineClue(String line) {
+    final lower = line.toLowerCase();
+    return _strengthPattern.hasMatch(lower) ||
+        _formWordPattern.hasMatch(lower) ||
+        _frequencyPattern.hasMatch(lower) ||
+        lower.contains('morning') ||
+        lower.contains('afternoon') ||
+        lower.contains('night') ||
+        lower.contains('before food') ||
+        lower.contains('after food') ||
+        lower.contains('before meal') ||
+        lower.contains('after meal') ||
+        RegExp(r'\b(?:od|bd|tds|tid|hs|sos)\b').hasMatch(lower);
+  }
+
+  bool _isSupportingInstructionLine(String line) {
+    final lower = line.toLowerCase();
+    if (lower.startsWith('take ') ||
+        lower.startsWith('use ') ||
+        lower.startsWith('apply ') ||
+        lower.startsWith('instill ') ||
+        lower.startsWith('1 ') ||
+        lower.startsWith('0 ') ||
+        _frequencyPattern.hasMatch(lower) ||
+        lower.contains('times daily') ||
+        lower.contains('once daily') ||
+        lower.contains('twice daily') ||
+        lower.contains('thrice daily') ||
+        lower.contains('morning') ||
+        lower.contains('afternoon') ||
+        lower.contains('night') ||
+        lower.contains('before food') ||
+        lower.contains('after food') ||
+        lower.contains('before meal') ||
+        lower.contains('after meal')) {
+      return true;
+    }
+    return false;
+  }
+
+  String _combineDosageLine(String base, List<String> supportingLines) {
+    final usefulLines = supportingLines
+        .where(
+          (line) => !line.toLowerCase().startsWith('supply'),
+        )
+        .toList();
+
+    if (base.isNotEmpty &&
+        base != base.split('|').first.trim() &&
+        usefulLines.isEmpty) {
+      return base;
+    }
+
+    final pieces = <String>[];
+    if (base.isNotEmpty && !_looksLikeMedicineName(base)) {
+      pieces.add(base);
+    }
+    pieces.addAll(usefulLines);
+    return pieces.join(' | ');
+  }
+
+  bool _looksLikeMedicineName(String candidate) {
+    final lower = candidate.toLowerCase();
+    if (_ignoredLineStarts.any(lower.startsWith) ||
+        _ignoredLineContains.any(lower.contains)) {
+      return false;
+    }
+    if (RegExp(r'[:@]').hasMatch(candidate) || _timePattern.hasMatch(candidate)) {
+      return false;
+    }
+
+    final words = candidate
+        .split(RegExp(r'\s+'))
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+    if (words.isEmpty) {
+      return false;
+    }
+
+    final meaningfulWords = words.where((word) {
+      final clean = word.toLowerCase().replaceAll(RegExp(r'[^a-z0-9/+.-]'), '');
+      if (clean.isEmpty) {
+        return false;
+      }
+      if (_invalidMedicineNames.contains(clean)) {
+        return false;
+      }
+      if ({'mg', 'ml', 'mcg', 'g', 'tab', 'tablet', 'cap', 'capsule'}.contains(clean)) {
+        return false;
+      }
+      return RegExp(r'[a-z]').hasMatch(clean);
+    }).toList();
+
+    if (meaningfulWords.isEmpty) {
+      return false;
+    }
+
+    return meaningfulWords.any((word) {
+      final clean = word.toLowerCase().replaceAll(RegExp(r'[^a-z0-9/+.-]'), '');
+      return RegExp(r'[a-z]{3,}').hasMatch(clean) || clean.contains('-');
+    });
   }
 
   List<MedicineTimeSlot> _extractSlots(String source) {

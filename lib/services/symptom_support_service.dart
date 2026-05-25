@@ -10,7 +10,7 @@ class SymptomSupportService {
   }) {
     final lowerSymptoms =
         symptoms.map((symptom) => symptom.toLowerCase()).toSet();
-    final medicineSuggestions = <String>[];
+    final medicineSuggestions = <SymptomMedicineSuggestion>[];
     final careAdvice = <String>[];
     final warningAdvice = <String>[];
     final currentMedicineWarnings = <String>[];
@@ -39,24 +39,38 @@ class SymptomSupportService {
     if (hasFever) {
       if (profile.age < 1) {
         medicineSuggestions.add(
-          'For infants, do not self-medicate. Immediate pediatric advice is the safest option.',
+          SymptomMedicineSuggestion(
+            commonMedicine: 'No self-medication for infants',
+            howItHelps:
+                'Fever in infants needs direct pediatric evaluation instead of home medicine guessing.',
+            importantWarning:
+                'Any fever in a baby under 3 months needs urgent medical attention.',
+          ),
         );
         warningAdvice.add(
           'Any fever in a baby under 3 months needs urgent medical attention.',
         );
       } else if (profile.age < 12 || profile.weightKg < 40) {
         medicineSuggestions.add(
-          'Basic suggestion: pediatric paracetamol syrup/suspension may be commonly used, but only with child-safe label directions or doctor advice.',
+          SymptomMedicineSuggestion(
+            commonMedicine: 'Pediatric paracetamol syrup/suspension',
+            howItHelps: 'Commonly used to reduce fever in children.',
+            importantWarning:
+                'Use only child-safe label directions or doctor advice. Avoid adult-strength fever medicines for children.',
+          ),
         );
         warningAdvice.add(
           'Avoid adult-strength fever medicines for children unless a doctor specifically advises it.',
         );
       } else {
         medicineSuggestions.add(
-          'Basic suggestion: paracetamol/acetaminophen is commonly used for fever if it is already safe for this person.',
-        );
-        medicineSuggestions.add(
-          'Basic suggestion: ibuprofen is another common option for some adults, but avoid it with ulcer, kidney disease, or doctor restriction.',
+          SymptomMedicineSuggestion(
+            commonMedicine: 'Paracetamol / Acetaminophen',
+            howItHelps:
+                'Common first-choice medicine for fever and mild body discomfort in adults.',
+            importantWarning:
+                'Avoid taking extra if the person is already using a similar pain or fever medicine.',
+          ),
         );
       }
       careAdvice.add(
@@ -67,9 +81,47 @@ class SymptomSupportService {
     }
 
     if (hasCough || hasCold || hasSoreThroat) {
-      medicineSuggestions.add(
-        'Basic suggestion: saline spray, warm fluids, and age-appropriate cough/cold relief are commonly used depending on symptoms.',
-      );
+      if (hasCough) {
+        medicineSuggestions.add(
+          SymptomMedicineSuggestion(
+            commonMedicine: 'Cough syrup / Ambroxol-based relief',
+            howItHelps:
+                'Used depending on whether the cough is dry or with mucus.',
+            importantWarning:
+                'Choose according to cough type and avoid duplicate cold syrups.',
+          ),
+        );
+      } else if (hasSoreThroat) {
+        medicineSuggestions.add(
+          SymptomMedicineSuggestion(
+            commonMedicine: 'Throat lozenges + Paracetamol',
+            howItHelps:
+                'Commonly used for sore throat discomfort and mild pain relief.',
+            importantWarning:
+                'Seek medical help if swallowing becomes very painful or difficult.',
+          ),
+        );
+      } else if (hasCold) {
+        medicineSuggestions.add(
+          SymptomMedicineSuggestion(
+            commonMedicine: 'Cetirizine / Levocetirizine',
+            howItHelps:
+                'Commonly used for sneezing, runny nose, or allergy-type cold symptoms.',
+            importantWarning:
+                'May cause sleepiness in some people.',
+          ),
+        );
+      } else {
+        medicineSuggestions.add(
+          SymptomMedicineSuggestion(
+            commonMedicine: 'Saline nasal spray / steam inhalation',
+            howItHelps:
+                'Helps with blocked nose, mild congestion, and cold discomfort.',
+            importantWarning:
+                'Use steam carefully to avoid burns, especially for children.',
+          ),
+        );
+      }
       careAdvice.add(
           'Warm fluids, steam carefully, and saline gargles may help soothe symptoms.');
       warningAdvice.add(
@@ -79,7 +131,12 @@ class SymptomSupportService {
 
     if (hasHeadache) {
       medicineSuggestions.add(
-        'Basic suggestion: paracetamol/acetaminophen is commonly used for headache if it is safe for the person and not duplicating current medicines.',
+        SymptomMedicineSuggestion(
+          commonMedicine: 'Paracetamol / Acetaminophen',
+          howItHelps: 'Commonly used for headache relief.',
+          importantWarning:
+              'Do not combine with another pain or fever medicine already being taken.',
+        ),
       );
       careAdvice.add(
           'Hydration, sleep, and reducing screen strain can help headache symptoms.');
@@ -89,6 +146,15 @@ class SymptomSupportService {
     }
 
     if (hasBodyPain) {
+      medicineSuggestions.add(
+        SymptomMedicineSuggestion(
+          commonMedicine: 'Paracetamol / Ibuprofen',
+          howItHelps:
+              'Commonly used for body pain and fever-related discomfort in adults.',
+          importantWarning:
+              'Avoid duplicate pain-relief medicines and follow prior doctor restrictions.',
+        ),
+      );
       careAdvice.add(
           'Gentle rest and fluids can help body pain during viral illness.');
     }
@@ -112,7 +178,13 @@ class SymptomSupportService {
 
     if (medicineSuggestions.isEmpty) {
       medicineSuggestions.add(
-        'Use only doctor-approved medicines or pharmacist guidance for these symptoms.',
+        SymptomMedicineSuggestion(
+          commonMedicine: 'Doctor-approved medicine only',
+          howItHelps:
+              'Use symptom relief only after doctor or pharmacist guidance for unclear symptoms.',
+          importantWarning:
+              'Avoid guessing medicine when the symptom pattern is unclear.',
+        ),
       );
     }
 
@@ -124,12 +196,58 @@ class SymptomSupportService {
 
     return SymptomSupportResult(
       possibleIssue: possibleIssue,
-      medicineSuggestions: medicineSuggestions.toSet().toList(),
+      medicineSuggestions: _prioritizeSuggestions(
+        _dedupeSuggestions(medicineSuggestions),
+      ),
       careAdvice: careAdvice.toSet().toList(),
       warningAdvice: warningAdvice.toSet().toList(),
       currentMedicineWarnings: currentMedicineWarnings.toSet().toList(),
       disclaimer:
           'I am not a doctor. These are general support suggestions only. Please consult a doctor if symptoms continue, worsen, or feel serious.',
     );
+  }
+
+  List<SymptomMedicineSuggestion> _dedupeSuggestions(
+    List<SymptomMedicineSuggestion> suggestions,
+  ) {
+    final seen = <String>{};
+    final result = <SymptomMedicineSuggestion>[];
+    for (final suggestion in suggestions) {
+      final key =
+          '${suggestion.commonMedicine}|${suggestion.howItHelps}|${suggestion.importantWarning}';
+      if (seen.add(key)) {
+        result.add(suggestion);
+      }
+    }
+    return result;
+  }
+
+  List<SymptomMedicineSuggestion> _prioritizeSuggestions(
+    List<SymptomMedicineSuggestion> suggestions,
+  ) {
+    if (suggestions.isEmpty) {
+      return suggestions;
+    }
+
+    final priority = <String, int>{
+      'no self-medication for infants': 0,
+      'pediatric paracetamol syrup/suspension': 1,
+      'paracetamol / acetaminophen': 2,
+      'cetirizine / levocetirizine': 3,
+      'cough syrup / ambroxol-based relief': 4,
+      'throat lozenges + paracetamol': 5,
+      'saline nasal spray / steam inhalation': 6,
+      'paracetamol / ibuprofen': 7,
+      'doctor-approved medicine only': 8,
+    };
+
+    final sorted = [...suggestions]
+      ..sort((a, b) {
+        final aRank = priority[a.commonMedicine.toLowerCase()] ?? 99;
+        final bRank = priority[b.commonMedicine.toLowerCase()] ?? 99;
+        return aRank.compareTo(bRank);
+      });
+
+    return [sorted.first];
   }
 }

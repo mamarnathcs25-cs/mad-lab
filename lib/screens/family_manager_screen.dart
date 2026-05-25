@@ -34,6 +34,48 @@ class _FamilyManagerScreenState extends State<FamilyManagerScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0F172A), Color(0xFF0F766E)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x180F172A),
+                  blurRadius: 26,
+                  offset: Offset(0, 16),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Care Circle',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Manage medicines for ${controller.profiles.length} family profiles in one place.',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    height: 1.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -129,16 +171,28 @@ class _FamilyManagerScreenState extends State<FamilyManagerScreen> {
             ),
           ),
           const SizedBox(height: 16),
+          if (controller.profiles.isEmpty)
+            const _FamilyEmptyState()
+          else
           ...controller.profiles.map(
             (profile) {
               final medicines = controller.medicinesForProfile(profile.id);
-              return Card(
-                child: ListTile(
-                  leading: CircleAvatar(child: Text(profile.initials)),
-                  title: Text(profile.name),
-                  subtitle: Text(
-                    '${profile.relationship.isEmpty ? 'Family member' : profile.relationship} - Age ${profile.age} - ${profile.weightKg.toStringAsFixed(1)} kg - ${medicines.length} medicines tracked',
-                  ),
+              return Container(
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.96),
+                  borderRadius: BorderRadius.circular(26),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x100F172A),
+                      blurRadius: 18,
+                      offset: Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(26),
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
@@ -146,30 +200,111 @@ class _FamilyManagerScreenState extends State<FamilyManagerScreen> {
                       ),
                     );
                   },
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        tooltip: 'Symptom support',
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  SymptomSupportScreen(profile: profile),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 26,
+                              backgroundColor: const Color(0xFFCCFBF1),
+                              child: Text(
+                                profile.initials,
+                                style: const TextStyle(
+                                  color: Color(0xFF0F766E),
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
                             ),
-                          );
-                        },
-                        icon: const Icon(Icons.health_and_safety_outlined),
-                      ),
-                      IconButton(
-                        onPressed: () => _openEditScreen(profile),
-                        icon: const Icon(Icons.edit_outlined),
-                      ),
-                      IconButton(
-                        onPressed: () => _confirmDelete(profile),
-                        icon: const Icon(Icons.delete_outline),
-                      ),
-                    ],
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    profile.name,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.w800),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    profile.relationship.isEmpty
+                                        ? 'Family member'
+                                        : profile.relationship,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF0FDFA),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                '${medicines.length} medicines',
+                                style: const TextStyle(
+                                  color: Color(0xFF0F766E),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _FamilyStat(
+                                label: 'Age',
+                                value: profile.age.toString(),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _FamilyStat(
+                                label: 'Weight',
+                                value: '${profile.weightKg.toStringAsFixed(1)} kg',
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton.tonalIcon(
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          SymptomSupportScreen(profile: profile),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.health_and_safety_outlined),
+                                label: const Text('Support'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              onPressed: () => _openEditScreen(profile),
+                              icon: const Icon(Icons.edit_outlined),
+                            ),
+                            IconButton(
+                              onPressed: () => _confirmDelete(profile),
+                              icon: const Icon(Icons.delete_outline),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -249,6 +384,73 @@ class _FamilyManagerScreenState extends State<FamilyManagerScreen> {
     if (shouldDelete == true) {
       await controller.deleteProfile(profile.id);
     }
+  }
+}
+
+class _FamilyStat extends StatelessWidget {
+  const _FamilyStat({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(color: Color(0xFF64748B))),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Color(0xFF0F172A),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FamilyEmptyState extends StatelessWidget {
+  const _FamilyEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: const Column(
+        children: [
+          Icon(Icons.family_restroom_outlined, size: 40, color: Color(0xFF64748B)),
+          SizedBox(height: 12),
+          Text(
+            'No family profiles yet',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Add a family member to start managing medicines, health support, and reminders together.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Color(0xFF64748B)),
+          ),
+        ],
+      ),
+    );
   }
 }
 

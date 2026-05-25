@@ -39,21 +39,43 @@ class _ScannerScreenState extends State<ScannerScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           Container(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF0F766E), Color(0xFF14B8A6)],
+                colors: [Color(0xFF0F172A), Color(0xFF0F766E), Color(0xFF2DD4BF)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(24),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x220F766E),
+                  blurRadius: 26,
+                  offset: Offset(0, 16),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.document_scanner_outlined,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 14),
                 Text(
                   'Scan a prescription to extract medicine names and dosage lines.',
                   style: theme.textTheme.titleMedium?.copyWith(
                     color: Colors.white,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 22,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -69,9 +91,16 @@ class _ScannerScreenState extends State<ScannerScreen> {
           Container(
             height: 250,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Colors.white.withValues(alpha: 0.96),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x100F172A),
+                  blurRadius: 18,
+                  offset: Offset(0, 12),
+                ),
+              ],
             ),
             child: _image == null
                 ? const Column(
@@ -107,6 +136,34 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.96),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Best Scan Tips',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                SizedBox(height: 10),
+                Text('• Keep the prescription flat and fully visible'),
+                SizedBox(height: 6),
+                Text('• Use bright light and avoid shadows'),
+                SizedBox(height: 6),
+                Text('• Capture the medicine table as straight as possible'),
+              ],
+            ),
           ),
           const SizedBox(height: 14),
           FilledButton(
