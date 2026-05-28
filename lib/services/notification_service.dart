@@ -1,7 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:medapp/models/medicine_model.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+
+@pragma('vm:entry-point')
+void notificationTapBackground(NotificationResponse response) {
+  unawaited(
+    NotificationService.instance.handleBackgroundNotificationResponse(response),
+  );
+}
 
 class NotificationService {
   NotificationService._();
@@ -20,13 +29,15 @@ class NotificationService {
     await _plugin.initialize(
       settings: settings,
       onDidReceiveNotificationResponse: _handleNotificationResponse,
+      onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
     );
 
     tz.initializeTimeZones();
     tz.setLocalLocation(_defaultLocation());
 
     final launchDetails = await _plugin.getNotificationAppLaunchDetails();
-    final launchPayload = launchDetails?.notificationResponse?.payload;
+    final launchResponse = launchDetails?.notificationResponse;
+    final launchPayload = launchResponse?.payload;
     if (launchPayload != null && launchPayload.isNotEmpty) {
       _pendingMedicineId = launchPayload;
     }
@@ -81,6 +92,25 @@ class NotificationService {
     await cancelMedicineReminder(medicineId);
   }
 
+  Future<void> dismissNotificationById(int? notificationId) async {
+    if (notificationId == null) {
+      return;
+    }
+    await _plugin.cancel(id: notificationId);
+  }
+
+  Future<void> handleBackgroundNotificationResponse(
+    NotificationResponse response,
+  ) async {
+    final medicineId = response.payload;
+    if (medicineId == null || medicineId.isEmpty) {
+      return;
+    }
+
+    await dismissNotificationById(response.id);
+    await dismissActiveMedicineNotification(medicineId);
+  }
+
   Future<void> attachMarkTakenHandler(
     Future<void> Function(String medicineId) handler,
   ) async {
@@ -90,16 +120,25 @@ class NotificationService {
       return;
     }
     _pendingMedicineId = null;
+    await dismissActiveMedicineNotification(pendingMedicineId);
     await handler(pendingMedicineId);
   }
 
   int _primaryNotificationIdFor(String medicineId) {
-    return medicineId.hashCode & 0x7fffffff;
+    return _stableNotificationSeed(medicineId);
   }
 
   int _followUpNotificationIdFor(String medicineId, int slot) {
-    return ((medicineId.hashCode & 0x7fffffff) + (slot * 1000003)) &
+    return (_stableNotificationSeed(medicineId) + (slot * 1000003)) &
         0x7fffffff;
+  }
+
+  int _stableNotificationSeed(String medicineId) {
+    var hash = 0;
+    for (final codeUnit in medicineId.codeUnits) {
+      hash = ((hash * 31) + codeUnit) & 0x7fffffff;
+    }
+    return hash;
   }
 
   String _mealLabel(MealTiming timing) {
@@ -143,6 +182,7 @@ class NotificationService {
             AndroidNotificationAction(
               'mark_taken',
               'Mark as taken',
+              showsUserInterface: true,
               cancelNotification: true,
             ),
           ],
@@ -201,7 +241,7 @@ class NotificationService {
     if (response.notificationResponseType ==
             NotificationResponseType.selectedNotification ||
         response.actionId == 'mark_taken') {
-      await dismissActiveMedicineNotification(medicineId);
+      await handleBackgroundNotificationResponse(response);
       final handler = _markTakenHandler;
       if (handler == null) {
         _pendingMedicineId = medicineId;
